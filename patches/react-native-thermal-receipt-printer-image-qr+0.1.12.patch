@@ -1,0 +1,22 @@
+diff --git a/node_modules/react-native-thermal-receipt-printer-image-qr/android/src/main/java/com/pinmi/react/printer/adapter/BLEPrinterAdapter.java b/node_modules/react-native-thermal-receipt-printer-image-qr/android/src/main/java/com/pinmi/react/printer/adapter/BLEPrinterAdapter.java
+index 9d77969..4018eb4 100644
+--- a/node_modules/react-native-thermal-receipt-printer-image-qr/android/src/main/java/com/pinmi/react/printer/adapter/BLEPrinterAdapter.java
++++ b/node_modules/react-native-thermal-receipt-printer-image-qr/android/src/main/java/com/pinmi/react/printer/adapter/BLEPrinterAdapter.java
+@@ -157,8 +157,17 @@ public class BLEPrinterAdapter implements PrinterAdapter{
+             try {
+                 this.mBluetoothSocket = (BluetoothSocket) device.getClass()
+                         .getMethod("createRfcommSocket", new Class[] { int.class }).invoke(device, 1);
++                // BUG FIX: the original code created this fallback socket via
++                // reflection but never called connect() on it, yet still
++                // reported success to JS. printRawData()'s null-socket guard
++                // then passed (socket object was non-null) while the socket's
++                // underlying native fd/streams were never established, so the
++                // first write() threw an uncatchable NullPointerException on a
++                // background thread and crashed the whole app.
++                this.mBluetoothSocket.connect();
+             } catch (Exception e) {
+                 e.printStackTrace();
++                throw new IOException("Fallback RFCOMM connect failed: " + e.getMessage());
+             }
+         } else {
+             this.mBluetoothSocket = device.createInsecureRfcommSocketToServiceRecord(uuid);

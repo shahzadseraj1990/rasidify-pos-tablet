@@ -1,0 +1,925 @@
+Starting project at D:\rpt
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+
+Logs for your project will appear below.
+Android Bundled 7359ms index.ts (1175 modules)
+ LOG  [Auth] fetching /user/get/103
+ LOG  [Auth] /user/get raw response: {"data":{"userID":103,"userType":"Business","firstName":"D'WHITE","lastName":" Bistro & Cafe","designation":"Owner","imagePath":"https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/8b2a3ebd-44b0-4207-b608-25e7b13e1ffa.jpg","email":"app.shopway@gmail.com","company":"D'WHITE","password":null,"contactNo":"+966 591523805","address":"2627 Ishbiliya Dist 13226 Riyadh","website":"","roleIDs":null,"countryID":"SA","cityID":0,"timeZoneID":54,"statusID":1,"masterUserID":0,"currencyID":2,"industryType":"restaurant","cr":"1000000001","vat":"399999999900003"},"status":1}
+ LOG  [Auth] resolved profile: {"currency":"SAR","currencyID":2,"companyName":"D'WHITE","companyAddress":"2627 Ishbiliya Dist 13226 Riyadh","companyPhone":"+966 591523805","companyLogoUrl":"https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/8b2a3ebd-44b0-4207-b608-25e7b13e1ffa.jpg"}
+ LOG  [ORDER] Invoice payload: {
+  "Invoice": {
+    "UserID": "103",
+    "CreatedBy": "103",
+    "Company": {
+      "Name": "",
+      "Address": "",
+      "VAT": "0000000001010101"
+    },
+    "DealID": "00000000",
+    "Customer": {
+      "customerInfoID": 0,
+      "name": "Walk-in",
+      "businessName": "Walk-in",
+      "email": "walkin_103@pos.internal",
+      "contact": "",
+      "status": "Active",
+      "isRegisteredBusiness": 0
+    },
+    "SalesPerson": "",
+    "TransactionNumber": "1789420399",
+    "OrderRefrenceNo": "1789420399",
+    "TransactionDate": "2026-09-14T21:13:19",
+    "TransactionPeriod": "2026-09-14T21:13:19",
+    "ExpireDate": "2026-09-14T21:13:19",
+    "NextPaymentDate": "2026-09-14T21:13:19",
+    "Subtotal": 46,
+    "Discount": 0,
+    "VATAmount": 6.8999999999999995,
+    "TotalAmount": 52.9,
+    "Balance": 52.9,
+    "StatusID": 106,
+    "InculsiveTax": 0,
+    "TaxID": 20,
+    "BillingCycle": 8,
+    "PackageID": 0,
+    "ParentID": 0,
+    "SendEmail": false,
+    "Currency": "SAR",
+    "PaymentTerms": 365,
+    "ShiftID": 67,
+    "ShiftOrderNo": 11,
+    "OrderState": 20,
+    "customerNote": "",
+    "description": "POS Order",
+    "taxes": [
+      {
+        "taxID": 20,
+        "invoiceID": 0,
+        "name": "VAT",
+        "value": 15,
+        "status": 1,
+        "type": "Percentage",
+        "applicableOn": "Invoice",
+        "percentage": 0,
+        "amount": 6.8999999999999995
+      }
+    ],
+    "line_items": [
+      {
+        "ProductType": "HW",
+        "Action": "general",
+        "ProductID": 329,
+        "ProductName": "Signature Burger",
+        "ProductDescription": "",
+        "SKU": "SKU-000002",
+        "Price": "21",
+        "Qty": "1",
+        "Discount": "0",
+        "Amount": "21",
+        "GrandTotal": "24.15"
+      },
+      {
+        "ProductType": "HW",
+        "Action": "general",
+        "ProductID": 330,
+        "ProductName": "Chicken Shashlik",
+        "ProductDescription": "",
+        "SKU": "SKU-000003",
+        "Price": "25",
+        "Qty": "1",
+        "Discount": "0",
+        "Amount": "25",
+        "GrandTotal": "28.749999999999996"
+      }
+    ],
+    "attachments": [],
+    "metadata": [],
+    "BranchID": 34,
+    "OrderTypeID": 87,
+    "AuthenticatedCode": "RSD103-34-24-20260912155613-95EE36AE",
+    "SubUserID": 16
+  }
+}
+ LOG  [ORDER] Invoice response: {
+  "invoice": {
+    "company": {
+      "name": "D'WHITE",
+      "address": "2627 Ishbiliya Dist 13226 Riyadh",
+      "vat": "399999999900003",
+      "cr": "1000000001",
+      "contact": "+966 591523805",
+      "email": "app.shopway@gmail.com",
+      "logoUrl": "https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/8b2a3ebd-44b0-4207-b608-25e7b13e1ffa.jpg"
+    },
+    "customer": {
+      "customerInfoID": 156,
+      "name": "Walk-in",
+      "secondName": null,
+      "businessName": "Walk-in",
+      "email": "walkin_103@pos.internal",
+      "contact": "",
+      "country": null,
+      "city": null,
+      "district": null,
+      "state": null,
+      "poBox": null,
+      "street": null,
+      "buildingNo": null,
+      "additionalNo": null,
+      "shortAddress": null,
+      "cr": null,
+      "vat": null,
+      "status": "1",
+      "metadataJson": "{}",
+      "isRegisteredBusiness": null,
+      "createdAt": null
+    },
+    "salesPerson": "",
+    "transactionNumber": "INV-0072",
+    "transactionDate": "09/15/2026 00:13:20",
+    "transactionPeriod": "09/15/2026 00:13:20",
+    "expireDate": "09/14/2026 21:13:19",
+    "nextPaymentDate": "09/15/2027 00:13:20",
+    "subtotal": 46,
+    "discount": 0,
+    "vatAmount": 6.8999999999999995,
+    "totalAmount": 52.9,
+    "balance": 52.9,
+    "lastPaymentDate": null,
+    "userID": 103,
+    "statusID": 106,
+    "inculsiveTax": 0,
+    "taxID": 20,
+    "billingCycle": 8,
+    "packageID": 0,
+    "invoiceID": 1193,
+    "parentID": null,
+    "line_items": [
+      {
+        "invoiceDetailID": 2084,
+        "invoiceID": 1193,
+        "productID": 329,
+        "productName": "Signature Burger",
+        "productDescription": "",
+        "qty": 1,
+        "price": 21,
+        "vat": 3.15,
+        "grandTotal": 24.15,
+        "sku": "SKU-000002",
+        "amount": 21,
+        "discount": 0,
+        "discounDiscountedAmountt": null,
+        "action": "general",
+        "productType": "HW",
+        "imageURL": "https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/663f8cfe-30d2-4a47-9794-b415c9944c6e.jpg",
+        "itemType": "Product",
+        "planID": null,
+        "billingCycle": null,
+        "planName": null,
+        "planAlternateName": null,
+        "monthlyPrice": null,
+        "yearlyPrice": null,
+        "planDescription": null
+      },
+      {
+        "invoiceDetailID": 2085,
+        "invoiceID": 1193,
+        "productID": 330,
+        "productName": "Chicken Shashlik",
+        "productDescription": "",
+        "qty": 1,
+        "price": 25,
+        "vat": 3.75,
+        "grandTotal": 28.75,
+        "sku": "SKU-000003",
+        "amount": 25,
+        "discount": 0,
+        "discounDiscountedAmountt": null,
+        "action": "general",
+        "productType": "HW",
+        "imageURL": "https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/7fd0df2b-9d83-4e89-8c24-bea3d4ead2b2.jpg",
+        "itemType": "Product",
+        "planID": null,
+        "billingCycle": null,
+        "planName": null,
+        "planAlternateName": null,
+        "monthlyPrice": null,
+        "yearlyPrice": null,
+        "planDescription": null
+      }
+    ],
+    "currency": "SAR",
+    "taxName": "VAT",
+    "status": "Unpaid",
+    "invoiceURL": "https://rasidify.com/invoice/view/jKu7BBnGC60ou8HQbTX5mYrmr-e6sLaqOOuv1w1_HkQ",
+    "paymentLink": "https://rasidify.com/Payment/initiate/UcT1nVjmTk_QXsGDOyhElLuVZCWxXCTBe_FeCx76Z-xtJfPKvyP-tDz9uY3iPaP5K2nsrrgMOzAKvxrpoe6nMw",
+    "invoiceHash": "jKu7BBnGC60ou8HQbTX5mYrmr-e6sLaqOOuv1w1_HkQ",
+    "paymentTerms": 365,
+    "createdBy": "103",
+    "sendEmail": null,
+    "customerInfoID": 156,
+    "invoiceCount": null,
+    "orderState": 20,
+    "orderRefrenceNo": "1789420399",
+    "subscriberTenantID": null,
+    "line_payments": [],
+    "customerNote": null,
+    "description": null,
+    "attachments": null,
+    "metadata": null,
+    "taxes": [
+      {
+        "taxID": 20,
+        "invoiceID": 1193,
+        "name": null,
+        "value": 0,
+        "status": 0,
+        "type": "Percentage",
+        "applicableOn": null,
+        "percentage": 15,
+        "amount": 6.9,
+        "userID": 0,
+        "isDefault": false
+      }
+    ],
+    "invoiceType": "invoice",
+    "parentNumber": null,
+    "hasCreditNote": 0,
+    "voidedFromInvoiceId": null,
+    "shiftID": 67,
+    "branchID": 34,
+    "shiftOrderNo": 11,
+    "orderTypeID": 87,
+    "orderType": "Pickup",
+    "deviceID": 24,
+    "authenticatedCode": "RSD103-34-24-20260912155613-95EE36AE",
+    "subUserID": 16,
+    "tableNo": null,
+    "subUserName": "Muhammad Shahzad",
+    "deviceName": "Tablet POS Device",
+    "zatcaStatus": null,
+    "zatcaLastError": null,
+    "zatcaNextRetryAt": null,
+    "zatcaRetryStep": null,
+    "sourceType": 2,
+    "zatcaQrCode": "AQdEJ1dISVRFAg8zOTk5OTk5OTk5MDAwMDMDEzIwMjYtMDktMTVUMDA6MTM6MjAEBTUyLjkwBQQ2LjkwBiBJLvy7S7TJT2CXF5MC/bqs4pPmO5WS0CJD9Pf3YGEiQAdgTUVZQ0lRQzRtTFhiNEdJOStkTm56cjRtTUdJL0QydjlyS2hSekRDNHdnSXllRXZvRUFJaEFMdDNUa0ZqNDNaRWc4dGlOakJrQWlJTFlyWFBkRkh3eEtaWVZVMDgwM1NnCFgwVjAQBgcqhkjOPQIBBgUrgQQACgNCAAShYIprRJr0UgStM6/S4CQLVUgpfFT2c+nHa+V/jKEx6PLxzTZcluUOru0/J2jyarRqE4yY2jyDCeLte3UpP1R4CUcwRQIhALE/ichmnWXCUKUbca3yci8oqwaLvFdHVjQrveI9uqAbAiA9hC4M8jgMBADPSzmd2uiPJA6gKR3LE03U75eqbC/rXA=="
+  },
+  "settings": null,
+  "status": 1,
+  "message": "Success"
+}
+ LOG  [ORDER] Invoice payload: {
+  "Invoice": {
+    "UserID": "103",
+    "CreatedBy": "103",
+    "Company": {
+      "Name": "",
+      "Address": "",
+      "VAT": "0000000001010101"
+    },
+    "DealID": "00000000",
+    "Customer": {
+      "customerInfoID": 0,
+      "name": "Walk-in",
+      "businessName": "Walk-in",
+      "email": "walkin_103@pos.internal",
+      "contact": "",
+      "status": "Active",
+      "isRegisteredBusiness": 0
+    },
+    "SalesPerson": "",
+    "TransactionNumber": "1789420567",
+    "OrderRefrenceNo": "1789420567",
+    "TransactionDate": "2026-09-14T21:16:07",
+    "TransactionPeriod": "2026-09-14T21:16:07",
+    "ExpireDate": "2026-09-14T21:16:07",
+    "NextPaymentDate": "2026-09-14T21:16:07",
+    "Subtotal": 147,
+    "Discount": 0,
+    "VATAmount": 22.05,
+    "TotalAmount": 169.05,
+    "Balance": 169.05,
+    "StatusID": 106,
+    "InculsiveTax": 0,
+    "TaxID": 20,
+    "BillingCycle": 8,
+    "PackageID": 0,
+    "ParentID": 0,
+    "SendEmail": false,
+    "Currency": "SAR",
+    "PaymentTerms": 365,
+    "ShiftID": 67,
+    "ShiftOrderNo": 12,
+    "OrderState": 20,
+    "customerNote": "",
+    "description": "POS Order",
+    "taxes": [
+      {
+        "taxID": 20,
+        "invoiceID": 0,
+        "name": "VAT",
+        "value": 15,
+        "status": 1,
+        "type": "Percentage",
+        "applicableOn": "Invoice",
+        "percentage": 0,
+        "amount": 22.05
+      }
+    ],
+    "line_items": [
+      {
+        "ProductType": "HW",
+        "Action": "general",
+        "ProductID": 331,
+        "ProductName": "Chicken Steak",
+        "ProductDescription": "",
+        "SKU": "SKU-000004",
+        "Price": "35",
+        "Qty": "1",
+        "Discount": "0",
+        "Amount": "35",
+        "GrandTotal": "40.25"
+      },
+      {
+        "ProductType": "HW",
+        "Action": "general",
+        "ProductID": 330,
+        "ProductName": "Chicken Shashlik",
+        "ProductDescription": "",
+        "SKU": "SKU-000003",
+        "Price": "25",
+        "Qty": "1",
+        "Discount": "0",
+        "Amount": "25",
+        "GrandTotal": "28.749999999999996"
+      },
+      {
+        "ProductType": "HW",
+        "Action": "general",
+        "ProductID": 329,
+        "ProductName": "Signature Burger",
+        "ProductDescription": "",
+        "SKU": "SKU-000002",
+        "Price": "21",
+        "Qty": "2",
+        "Discount": "0",
+        "Amount": "42",
+        "GrandTotal": "48.3"
+      },
+      {
+        "ProductType": "HW",
+        "Action": "general",
+        "ProductID": 394,
+        "ProductName": "National Day Offer",
+        "ProductDescription": "",
+        "SKU": "CB-1789413595343",
+        "Price": "45",
+        "Qty": "1",
+        "Discount": "0",
+        "Amount": "45",
+        "GrandTotal": "51.74999999999999"
+      }
+    ],
+    "attachments": [],
+    "metadata": [],
+    "BranchID": 34,
+    "OrderTypeID": 87,
+    "AuthenticatedCode": "RSD103-34-24-20260912155613-95EE36AE",
+    "SubUserID": 16
+  }
+}
+ LOG  [ORDER] Invoice ERROR status: 500
+ LOG  [ORDER] Invoice ERROR data: ""
+ LOG  [ORDER] Invoice ERROR message: Request failed with status code 500
+ LOG  [ORDER] Invoice ERROR headers: {
+  "content-length": "0",
+  "date": "Mon, 14 Sep 2026 21:16:07 GMT",
+  "server": "Kestrel"
+}
+ LOG  [ORDER] Invoice ERROR data type: string raw: 
+Android Bundled 37ms index.ts (1 module)
+Android Bundled 34ms index.ts (1 module)
+ LOG  [ORDER] Invoice payload: {
+  "Invoice": {
+    "UserID": "103",
+    "CreatedBy": "103",
+    "Company": {
+      "Name": "",
+      "Address": "",
+      "VAT": "0000000001010101"
+    },
+    "DealID": "00000000",
+    "Customer": {
+      "customerInfoID": 0,
+      "name": "Walk-in",
+      "businessName": "Walk-in",
+      "email": "walkin_103@pos.internal",
+      "contact": "",
+      "status": "Active",
+      "isRegisteredBusiness": 0
+    },
+    "SalesPerson": "",
+    "TransactionNumber": "1789424716",
+    "OrderRefrenceNo": "1789424716",
+    "TransactionDate": "2026-09-14T22:25:16",
+    "TransactionPeriod": "2026-09-14T22:25:16",
+    "ExpireDate": "2026-09-14T22:25:16",
+    "NextPaymentDate": "2026-09-14T22:25:16",
+    "Subtotal": 45,
+    "Discount": 0,
+    "VATAmount": 0,
+    "TotalAmount": 45,
+    "Balance": 45,
+    "StatusID": 106,
+    "InculsiveTax": 0,
+    "TaxID": 0,
+    "BillingCycle": 8,
+    "PackageID": 0,
+    "ParentID": 0,
+    "SendEmail": false,
+    "Currency": "SAR",
+    "PaymentTerms": 365,
+    "ShiftID": 67,
+    "ShiftOrderNo": 12,
+    "OrderState": 20,
+    "customerNote": "",
+    "description": "POS Order",
+    "taxes": [],
+    "line_items": [
+      {
+        "ProductType": "CB",
+        "Action": "general",
+        "ProductID": 394,
+        "ProductName": "National Day Offer",
+        "ProductDescription": "Signature Burger, Matka Chai, Fries, Size: Small",
+        "SKU": "CB-1789413595343",
+        "Price": "45",
+        "Qty": "1",
+        "Discount": "0",
+        "Selections": [
+          {
+            "selectionType": "Combo",
+            "groupID": 3,
+            "groupName": "Burger",
+            "itemID": 3,
+            "itemName": "Signature Burger",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Combo",
+            "groupID": 5,
+            "groupName": "Drinks",
+            "itemID": 6,
+            "itemName": "Matka Chai",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Combo",
+            "groupID": 7,
+            "groupName": "Fries",
+            "itemID": 9,
+            "itemName": "Fries",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Modifier",
+            "groupID": 2,
+            "groupName": "Fries — Size",
+            "itemID": 3,
+            "itemName": "Small",
+            "additionalPrice": 0
+          }
+        ],
+        "Amount": "45",
+        "GrandTotal": "45"
+      }
+    ],
+    "attachments": [],
+    "metadata": [],
+    "BranchID": 34,
+    "AuthenticatedCode": "RSD103-34-24-20260912155613-95EE36AE",
+    "SubUserID": 16
+  }
+}
+ LOG  [ORDER] Invoice ERROR status: 500
+ LOG  [ORDER] Invoice ERROR data: ""
+ LOG  [ORDER] Invoice ERROR message: Request failed with status code 500
+ LOG  [ORDER] Invoice ERROR headers: {
+  "content-length": "0",
+  "date": "Mon, 14 Sep 2026 22:25:19 GMT",
+  "server": "Kestrel"
+}
+ LOG  [ORDER] Invoice ERROR data type: string raw: 
+ LOG  [Auth] fetching /user/get/103
+ LOG  [Auth] /user/get raw response: {"data":{"userID":103,"userType":"Business","firstName":"D'WHITE","lastName":" Bistro & Cafe","designation":"Owner","imagePath":"https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/8b2a3ebd-44b0-4207-b608-25e7b13e1ffa.jpg","email":"app.shopway@gmail.com","company":"D'WHITE","password":null,"contactNo":"+966 591523805","address":"2627 Ishbiliya Dist 13226 Riyadh","website":"","roleIDs":null,"countryID":"SA","cityID":0,"timeZoneID":54,"statusID":1,"masterUserID":0,"currencyID":2,"industryType":"restaurant","cr":"1000000001","vat":"399999999900003"},"status":1}
+ LOG  [Auth] resolved profile: {"currency":"SAR","currencyID":2,"companyName":"D'WHITE","companyAddress":"2627 Ishbiliya Dist 13226 Riyadh","companyPhone":"+966 591523805","companyLogoUrl":"https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/8b2a3ebd-44b0-4207-b608-25e7b13e1ffa.jpg"}
+ LOG  [ORDER] Invoice payload: {
+  "Invoice": {
+    "UserID": "103",
+    "CreatedBy": "103",
+    "Company": {
+      "Name": "",
+      "Address": "",
+      "VAT": "0000000001010101"
+    },
+    "DealID": "00000000",
+    "Customer": {
+      "customerInfoID": 0,
+      "name": "Walk-in",
+      "businessName": "Walk-in",
+      "email": "walkin_103@pos.internal",
+      "contact": "",
+      "status": "Active",
+      "isRegisteredBusiness": 0
+    },
+    "SalesPerson": "",
+    "TransactionNumber": "1789424816",
+    "OrderRefrenceNo": "1789424816",
+    "TransactionDate": "2026-09-14T22:26:56",
+    "TransactionPeriod": "2026-09-14T22:26:56",
+    "ExpireDate": "2026-09-14T22:26:56",
+    "NextPaymentDate": "2026-09-14T22:26:56",
+    "Subtotal": 92,
+    "Discount": 0,
+    "VATAmount": 13.799999999999999,
+    "TotalAmount": 105.8,
+    "Balance": 105.8,
+    "StatusID": 106,
+    "InculsiveTax": 0,
+    "TaxID": 20,
+    "BillingCycle": 8,
+    "PackageID": 0,
+    "ParentID": 0,
+    "SendEmail": false,
+    "Currency": "SAR",
+    "PaymentTerms": 365,
+    "ShiftID": 67,
+    "ShiftOrderNo": 13,
+    "OrderState": 20,
+    "customerNote": "",
+    "description": "POS Order",
+    "taxes": [
+      {
+        "taxID": 20,
+        "invoiceID": 0,
+        "name": "VAT",
+        "value": 15,
+        "status": 1,
+        "type": "Percentage",
+        "applicableOn": "Invoice",
+        "percentage": 0,
+        "amount": 13.799999999999999
+      }
+    ],
+    "line_items": [
+      {
+        "ProductType": "CB",
+        "Action": "general",
+        "ProductID": 394,
+        "ProductName": "National Day Offer",
+        "ProductDescription": "Signature Burger, Matka Chai, Fries, Size: Small",
+        "SKU": "CB-1789413595343",
+        "Price": "45",
+        "Qty": "1",
+        "Discount": "0",
+        "Selections": [
+          {
+            "selectionType": "Combo",
+            "groupID": 3,
+            "groupName": "Burger",
+            "itemID": 3,
+            "itemName": "Signature Burger",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Combo",
+            "groupID": 5,
+            "groupName": "Drinks",
+            "itemID": 6,
+            "itemName": "Matka Chai",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Combo",
+            "groupID": 7,
+            "groupName": "Fries",
+            "itemID": 9,
+            "itemName": "Fries",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Modifier",
+            "groupID": 2,
+            "groupName": "Fries — Size",
+            "itemID": 3,
+            "itemName": "Small",
+            "additionalPrice": 0
+          }
+        ],
+        "Amount": "45",
+        "GrandTotal": "51.74999999999999"
+      },
+      {
+        "ProductType": "CB",
+        "Action": "general",
+        "ProductID": 394,
+        "ProductName": "National Day Offer",
+        "ProductDescription": "Pizza Burger +2, Matka Chai, Fries, Size: Small",
+        "SKU": "CB-1789413595343",
+        "Price": "47",
+        "Qty": "1",
+        "Discount": "0",
+        "Selections": [
+          {
+            "selectionType": "Combo",
+            "groupID": 3,
+            "groupName": "Burger",
+            "itemID": 4,
+            "itemName": "Pizza Burger",
+            "additionalPrice": 2
+          },
+          {
+            "selectionType": "Combo",
+            "groupID": 5,
+            "groupName": "Drinks",
+            "itemID": 6,
+            "itemName": "Matka Chai",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Combo",
+            "groupID": 7,
+            "groupName": "Fries",
+            "itemID": 9,
+            "itemName": "Fries",
+            "additionalPrice": 0
+          },
+          {
+            "selectionType": "Modifier",
+            "groupID": 2,
+            "groupName": "Fries — Size",
+            "itemID": 3,
+            "itemName": "Small",
+            "additionalPrice": 0
+          }
+        ],
+        "Amount": "47",
+        "GrandTotal": "54.05"
+      }
+    ],
+    "attachments": [],
+    "metadata": [],
+    "BranchID": 34,
+    "OrderTypeID": 87,
+    "AuthenticatedCode": "RSD103-34-24-20260912155613-95EE36AE",
+    "SubUserID": 16
+  }
+}
+ LOG  [ORDER] Invoice response: {
+  "invoice": {
+    "company": {
+      "name": "D'WHITE",
+      "address": "2627 Ishbiliya Dist 13226 Riyadh",
+      "vat": "399999999900003",
+      "cr": "1000000001",
+      "contact": "+966 591523805",
+      "email": "app.shopway@gmail.com",
+      "logoUrl": "https://rasidify.blob.core.windows.net/upload/Images/2026-08-28/8b2a3ebd-44b0-4207-b608-25e7b13e1ffa.jpg"
+    },
+    "customer": {
+      "customerInfoID": 156,
+      "name": "Walk-in",
+      "secondName": null,
+      "businessName": "Walk-in",
+      "email": "walkin_103@pos.internal",
+      "contact": "",
+      "country": null,
+      "city": null,
+      "district": null,
+      "state": null,
+      "poBox": null,
+      "street": null,
+      "buildingNo": null,
+      "additionalNo": null,
+      "shortAddress": null,
+      "cr": null,
+      "vat": null,
+      "status": "1",
+      "metadataJson": "{}",
+      "isRegisteredBusiness": null,
+      "createdAt": null
+    },
+    "salesPerson": "",
+    "transactionNumber": "INV-0075",
+    "transactionDate": "09/15/2026 01:26:56",
+    "transactionPeriod": "09/15/2026 01:26:56",
+    "expireDate": "09/14/2026 22:26:56",
+    "nextPaymentDate": "09/15/2027 01:26:56",
+    "subtotal": 92,
+    "discount": 0,
+    "vatAmount": 13.799999999999999,
+    "totalAmount": 105.8,
+    "balance": 105.8,
+    "lastPaymentDate": null,
+    "userID": 103,
+    "statusID": 106,
+    "inculsiveTax": 0,
+    "taxID": 20,
+    "billingCycle": 8,
+    "packageID": 0,
+    "invoiceID": 1204,
+    "parentID": null,
+    "line_items": [
+      {
+        "invoiceDetailID": 2107,
+        "invoiceID": 1204,
+        "productID": 394,
+        "productName": "National Day Offer",
+        "productDescription": "Signature Burger, Matka Chai, Fries, Size: Small",
+        "qty": 1,
+        "price": 45,
+        "vat": 6.75,
+        "grandTotal": 51.75,
+        "sku": "CB-1789413595343",
+        "amount": 45,
+        "discount": 0,
+        "discounDiscountedAmountt": null,
+        "action": "general",
+        "productType": "CB",
+        "imageURL": "https://rasidify.blob.core.windows.net/upload/Images/2026-09-14/dc7e3ac5-9a6c-4efa-a7b2-941367f42b9c.jpg",
+        "itemType": "Product",
+        "planID": null,
+        "billingCycle": null,
+        "planName": null,
+        "planAlternateName": null,
+        "monthlyPrice": null,
+        "yearlyPrice": null,
+        "planDescription": null,
+        "selections": [
+          {
+            "invoiceDetailID": 2107,
+            "selectionType": "Combo",
+            "groupID": 3,
+            "groupName": "Burger",
+            "itemID": 3,
+            "itemName": "Signature Burger",
+            "additionalPrice": 0
+          },
+          {
+            "invoiceDetailID": 2107,
+            "selectionType": "Combo",
+            "groupID": 5,
+            "groupName": "Drinks",
+            "itemID": 6,
+            "itemName": "Matka Chai",
+            "additionalPrice": 0
+          },
+          {
+            "invoiceDetailID": 2107,
+            "selectionType": "Combo",
+            "groupID": 7,
+            "groupName": "Fries",
+            "itemID": 9,
+            "itemName": "Fries",
+            "additionalPrice": 0
+          },
+          {
+            "invoiceDetailID": 2107,
+            "selectionType": "Modifier",
+            "groupID": 2,
+            "groupName": "Fries — Size",
+            "itemID": 3,
+            "itemName": "Small",
+            "additionalPrice": 0
+          }
+        ]
+      },
+      {
+        "invoiceDetailID": 2108,
+        "invoiceID": 1204,
+        "productID": 394,
+        "productName": "National Day Offer",
+        "productDescription": "Pizza Burger +2, Matka Chai, Fries, Size: Small",
+        "qty": 1,
+        "price": 47,
+        "vat": 7.05,
+        "grandTotal": 54.05,
+        "sku": "CB-1789413595343",
+        "amount": 47,
+        "discount": 0,
+        "discounDiscountedAmountt": null,
+        "action": "general",
+        "productType": "CB",
+        "imageURL": "https://rasidify.blob.core.windows.net/upload/Images/2026-09-14/dc7e3ac5-9a6c-4efa-a7b2-941367f42b9c.jpg",
+        "itemType": "Product",
+        "planID": null,
+        "billingCycle": null,
+        "planName": null,
+        "planAlternateName": null,
+        "monthlyPrice": null,
+        "yearlyPrice": null,
+        "planDescription": null,
+        "selections": [
+          {
+            "invoiceDetailID": 2108,
+            "selectionType": "Combo",
+            "groupID": 3,
+            "groupName": "Burger",
+            "itemID": 4,
+            "itemName": "Pizza Burger",
+            "additionalPrice": 2
+          },
+          {
+            "invoiceDetailID": 2108,
+            "selectionType": "Combo",
+            "groupID": 5,
+            "groupName": "Drinks",
+            "itemID": 6,
+            "itemName": "Matka Chai",
+            "additionalPrice": 0
+          },
+          {
+            "invoiceDetailID": 2108,
+            "selectionType": "Combo",
+            "groupID": 7,
+            "groupName": "Fries",
+            "itemID": 9,
+            "itemName": "Fries",
+            "additionalPrice": 0
+          },
+          {
+            "invoiceDetailID": 2108,
+            "selectionType": "Modifier",
+            "groupID": 2,
+            "groupName": "Fries — Size",
+            "itemID": 3,
+            "itemName": "Small",
+            "additionalPrice": 0
+          }
+        ]
+      }
+    ],
+    "currency": "SAR",
+    "taxName": "VAT",
+    "status": "Unpaid",
+    "invoiceURL": "https://rasidify.com/invoice/view/bGYqh4ysAm-sFzfZ6cKUOs7VcSBI9QHD-8A50tUPntA",
+    "paymentLink": "https://rasidify.com/Payment/initiate/2YiRnN_OE2Te8TeHJRbrYS1hwxYNshua61xNiP96UFthcx9kqgfU5kjpQsw6m9bMh_FTrnTvTlqcxhl-Yvez1g",
+    "invoiceHash": "bGYqh4ysAm-sFzfZ6cKUOs7VcSBI9QHD-8A50tUPntA",
+    "paymentTerms": 365,
+    "createdBy": "103",
+    "sendEmail": null,
+    "customerInfoID": 156,
+    "invoiceCount": null,
+    "orderState": 20,
+    "orderRefrenceNo": "1789424816",
+    "subscriberTenantID": null,
+    "line_payments": [],
+    "customerNote": null,
+    "description": null,
+    "attachments": null,
+    "metadata": null,
+    "taxes": [
+      {
+        "taxID": 20,
+        "invoiceID": 1204,
+        "name": null,
+        "value": 0,
+        "status": 0,
+        "type": "Percentage",
+        "applicableOn": null,
+        "percentage": 15,
+        "amount": 13.8,
+        "userID": 0,
+        "isDefault": false
+      }
+    ],
+    "invoiceType": "invoice",
+    "parentNumber": null,
+    "hasCreditNote": 0,
+    "voidedFromInvoiceId": null,
+    "shiftID": 67,
+    "branchID": 34,
+    "shiftOrderNo": 13,
+    "orderTypeID": 87,
+    "orderType": "Pickup",
+    "deviceID": null,
+    "authenticatedCode": null,
+    "subUserID": null,
+    "tableNo": null,
+    "subUserName": null,
+    "deviceName": null,
+    "zatcaStatus": null,
+    "zatcaLastError": null,
+    "zatcaNextRetryAt": null,
+    "zatcaRetryStep": null,
+    "sourceType": null,
+    "zatcaQrCode": null
+  },
+  "settings": null,
+  "status": 1,
+  "message": "Success"
+}
+Android Bundled 58ms index.ts (1 module)
+Android Bundled 34ms index.ts (1 module)
