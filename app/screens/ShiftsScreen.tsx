@@ -5,7 +5,7 @@ import Icon from '../components/Icon';
 import Money from '../components/Money';
 import { useAuthStore } from '../store/authStore';
 import { shiftService } from '../services/shiftService';
-import api from '../services/api';
+import { posApi } from '../services/api';
 
 interface ShiftRow {
   shiftID: number;
@@ -57,7 +57,7 @@ export default function ShiftsScreen() {
   async function load() {
     setLoading(true);
     try {
-      const res = await api.get('/pos/shifts?page=1&pageSize=50');
+      const res = await posApi.get('/pos/shifts?page=1&pageSize=50');
       const data = res.data?.data ?? res.data;
       const list: any[] = data?.shifts ?? (Array.isArray(data) ? data : []);
       setShifts(list.map(s => ({

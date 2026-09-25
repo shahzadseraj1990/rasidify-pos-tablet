@@ -55,8 +55,9 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
         const cfg = await productCatalogService.getPosConfig(product.productID);
         setConfig(cfg);
 
-        // Fetch pos-config for each distinct combo item once, to discover any
-        // modifier groups attached to that item product (e.g. Fries -> Size).
+        // Look up each distinct combo item's own config (from the cached
+        // catalog menu — no network call), to discover any modifier groups
+        // attached to that item product (e.g. Fries -> Size).
         const itemIDs = Array.from(new Set(cfg.comboItems.map(ci => ci.itemProductID)));
         if (itemIDs.length > 0) {
           const results = await Promise.all(itemIDs.map(id => productCatalogService.getPosConfig(id)));

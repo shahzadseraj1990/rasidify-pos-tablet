@@ -31,7 +31,8 @@ import { useBarcodeScannerCapture } from '../providers/BarcodeScannerProvider';
 import { buildSimpleReceipt } from '../services/escpos/ReceiptBuilder';
 import { printReceipt } from '../services/PrinterService';
 import { printReceiptNow } from '../services/receiptPrintFlow';
-import api from '../services/api';
+import { posApi } from '../services/api';
+import { useSessionStore } from '../store/sessionStore';
 import { DEV_MOCK_PRODUCTS, DEV_MOCK_CATEGORIES } from '../utils/devBypass';
 import { productCatalogService } from '../services/productCatalogService';
 import ProductOptionsModal from '../components/ProductOptionsModal';
@@ -81,6 +82,9 @@ export default function SellScreen({ navigation }: Props) {
   const [printingBill, setPrintingBill] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '' });
+  const [savingCustomer, setSavingCustomer] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [tablePickerVisible, setTablePickerVisible] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
@@ -115,13 +119,18 @@ export default function SellScreen({ navigation }: Props) {
       try {
         // load() is a no-op (resolves immediately, no network) once already
         // cached — this only actually fetches the first time in the session.
-        const [, ot] = await Promise.all([
-          useProductStore.getState().load(),
-          orderService.getOrderTypes().catch(() => []),
-        ]);
+        // Order types come from the session bootstrap (cached — no request
+        // here once login/cold-start has loaded it).
+        // Loaded independently of the menu: a slow or failed menu request
+        // must not leave the order-type tabs unselected (an order would then
+        // be saved with no OrderTypeID).
+        const boot = await useSessionStore.getState().load(user?.branchID ?? null).catch(() => null);
+        const ot = (boot?.orderTypes ?? []).map(t => ({ id: t.orderTypeID, name: t.name ?? '' }));
         if (ot.length > 0) setOrderTypes(ot);
-        if (ot.length > 0 && cart.orderTypeID == null) cart.setOrderType(ot[0].id);
-        else if (cart.orderTypeID == null) cart.setOrderType(ORDER_TYPE_FALLBACK[0].id);
+        const current = useCartStore.getState().orderTypeID;
+        if (ot.length > 0 && (current == null || !ot.some(t => t.id === current))) cart.setOrderType(ot[0].id);
+        else if (current == null) cart.setOrderType(ORDER_TYPE_FALLBACK[0].id);
+        await useProductStore.getState().load();
       } catch (e) {
         // Non-fatal: in dev, fall back to mock data so the UI is testable
         // without a live backend; in production leave lists empty.
@@ -131,7 +140,7 @@ export default function SellScreen({ navigation }: Props) {
         }
       }
       try {
-        const res = await api.get('/invoicing/get/customers');
+        const res = await posApi.get('/pos/customers');
         const raw: any[] = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
         setCustomers(raw.map((c: any) => ({
           customerID: c.customerInfoID ?? c.customerID,
@@ -146,25 +155,6 @@ export default function SellScreen({ navigation }: Props) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Warm the pos-config cache for every product in the background as soon as
-  // the catalog loads, so the common case — tapping a product — reads from
-  // cache instead of waiting on a network round trip. Every tap used to pay
-  // this latency on its first hit; this moves it off the tap path entirely.
-  useEffect(() => {
-    if (!productsLoaded || products.length === 0) return;
-    let cancelled = false;
-    const CONCURRENCY = 4;
-    let idx = 0;
-    async function worker() {
-      while (!cancelled && idx < products.length) {
-        const p = products[idx++];
-        try { await productCatalogService.getPosConfig(p.productID); } catch {}
-      }
-    }
-    Array.from({ length: CONCURRENCY }, worker);
-    return () => { cancelled = true; };
-  }, [productsLoaded, products]);
 
   // Search no longer filters the grid — it has its own results popup
   // (ProductSearchPanel), so the grid is category-only.
@@ -310,6 +300,53 @@ export default function SellScreen({ navigation }: Props) {
     );
   }, [customers, customerSearch]);
 
+  const closeCustomerModal = () => {
+    Keyboard.dismiss();
+    setCustomerModalVisible(false);
+    setAddingCustomer(false);
+  };
+
+  // POST /pos/customers, then select the new customer for this order. Unlike
+  // Web POS, a failure is reported instead of inventing a local customer ID
+  // (a fake ID would be sent with the invoice as customerInfoID).
+  const saveNewCustomer = async () => {
+    const name = newCustomer.name.trim();
+    if (!name || savingCustomer) return;
+    const phone = newCustomer.phone.trim();
+    // sp_invoicing_create_invoice resolves an invoice's customer by Email
+    // only (it ignores CustomerInfoID), so a customer saved without a unique
+    // email could never be attached to an order: it would fall back to the
+    // walk-in customer. Give email-less customers a unique placeholder, same
+    // pattern as the walk-in walkin_{tenant}@pos.internal address.
+    const tenantID = (user as any)?.userID ?? 0;
+    const email = newCustomer.email.trim() || `cust_${Date.now()}_${tenantID}@pos.internal`;
+    setSavingCustomer(true);
+    try {
+      const res = await posApi.post('/pos/customers', {
+        customerInfoID: 0, name, secondName: '', businessName: name,
+        email, contact: phone,
+        country: 'SA', city: 'Riyadh', district: '', state: '', street: '', buildingNo: '',
+        additionalNo: '', shortAddress: '', poBox: '', cr: '', vat: '',
+        metadataJson: '{}', isRegisteredBusiness: 0, status: '1',
+      });
+      const d = res.data;
+      const ok = d?.status === 1 || d?.Status === 1 || d?.status === 'Success' || d?.Status === 'Success';
+      const raw = d?.data ?? d?.Data;
+      const id = Number(raw);
+      if (!ok || !id) throw new Error(typeof raw === 'string' && raw ? raw : 'Customer not created');
+      const created: Customer = { customerID: id, name, businessName: name, phone, email };
+      setCustomers(list => [created, ...list]);
+      cart.setCustomer(created);
+      setNewCustomer({ name: '', phone: '', email: '' });
+      closeCustomerModal();
+      toast('Customer Added', 'success', name);
+    } catch (err: any) {
+      toast('Customer Not Added', 'error', err?.response?.data?.message ?? err?.message ?? 'Please try again.');
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
   const handleHold = async () => {
     if (cart.items.length === 0) return;
     if (!activeShift) {
@@ -318,66 +355,28 @@ export default function SellScreen({ navigation }: Props) {
     }
     setHolding(true);
     try {
-      const tenantID = (user as any)?.userID ?? 0;
-      const sub = cart.subtotal();
-      const vat = cart.totalTax();
-      const disc = cart.totalDiscount();
-      const total = sub + vat - disc;
-      const now = new Date().toISOString().replace(/\.\d{3}Z$/, '');
-      const refNo = String(Math.floor(Date.now() / 1000));
-      const taxID = useTaxStore.getState().taxID;
       const heldTableID = cart.tableID;
-      const heldTableNo = cart.tableNo;
-      const createRes = await api.post('/invoicing/create/invoice', {
-        Invoice: {
-          UserID: String(tenantID), CreatedBy: String(tenantID),
-          Company: { Name: '', Address: '', VAT: '0000000001010101' },
-          DealID: '00000000',
-          Customer: {
-            customerInfoID: cart.customer?.customerID ?? 0,
-            name: cart.customer ? (cart.customer.businessName || cart.customer.name || 'Walk-in') : 'Walk-in',
-            businessName: cart.customer?.businessName ?? 'Walk-in',
-            email: `walkin_${tenantID}@pos.internal`,
-            contact: '', status: 'Active', isRegisteredBusiness: 0,
-          },
-          SalesPerson: '', TransactionNumber: refNo, OrderRefrenceNo: refNo,
-          TransactionDate: now, TransactionPeriod: now, ExpireDate: now, NextPaymentDate: now,
-          Subtotal: sub, Discount: disc, VATAmount: vat, TotalAmount: total, Balance: total,
-          StatusID: 106, InculsiveTax: 0,
-          TaxID: taxID,
-          BillingCycle: 8, PackageID: 0, ParentID: 0, SendEmail: false,
-          Currency: user?.currency ?? 'SAR', PaymentTerms: 365,
-          ShiftID: activeShift.shiftID,
-          ShiftOrderNo: Math.floor(Date.now() / 1000) % 10000,
-          BranchID: activeShift.branchID ?? user?.branchID ?? undefined,
-          OrderTypeID: cart.orderTypeID ?? undefined,
-          OrderState: 12, customerNote: cart.orderNote || '', description: 'POS Order',
-          TableNo: heldTableNo || undefined,
-          // Omitting this when there's no real TaxID avoids an FK violation
-          // on insert — same guard orderService.createOrder already applies
-          // for checkout (see [HOLD-DEBUG] investigation, 2026-09-18).
-          taxes: taxID > 0 ? [{ taxID, invoiceID: 0, name: taxName, value: taxPercent, status: 1, type: 'Percentage', applicableOn: 'Invoice', percentage: 0, amount: vat }] : [],
-          line_items: cart.items.map(i => ({
-            ProductType: i.type ?? 'HW', Action: 'general',
-            ProductID: i.productID, ProductName: i.name, ProductDescription: i.selectionSummary ?? '',
-            SKU: i.sku ?? '', Price: String(i.price), Qty: String(i.qty),
-            Discount: '0', Selections: i.lineSelections ?? [], Amount: String(i.total), GrandTotal: String(i.total),
-          })),
-          attachments: [], metadata: [],
-        },
+      // Same payload as checkout (orderService._buildInvoice), OrderState 12.
+      // A resumed held order is updated in place instead of duplicated.
+      const { invoiceID } = await orderService.holdOrder({
+        existingInvoiceID: cart.checkoutInvoiceID,
+        existingShiftOrderNo: cart.checkoutShiftOrderNo,
+        shiftID: activeShift.shiftID,
+        shiftOrderCount: activeShift.orderCount,
+        branchID: activeShift.branchID ?? user?.branchID ?? null,
+        orderTypeID: cart.orderTypeID,
+        customerID: cart.customer?.customerID ?? null,
+        customerName: cart.customer ? (cart.customer.businessName || cart.customer.name || 'Walk-in') : 'Walk-in',
+        customerBusinessName: cart.customer?.businessName,
+        customerEmail: cart.customer?.email,
+        customerPhone: cart.customer?.phone,
+        orderNote: cart.orderNote,
+        discount: cart.totalDiscount(),
+        currency,
+        items: cart.items,
+        tableID: heldTableID,
+        tableNo: cart.tableNo,
       });
-      // The backend can respond 200 OK with no invoice actually created (e.g.
-      // insufficient stock) — createRes.data.status/message carries the real
-      // outcome. Treat a missing invoiceID as a failure, same as checkout's
-      // orderService.createOrder does, or a held order with no real invoice
-      // would still show "Order Held" and leave the table un-occupied.
-      const inv = createRes.data?.invoice ?? createRes.data?.data ?? createRes.data;
-      const invoiceID = inv?.invoiceID ?? inv?.InvoiceID ?? inv?.id;
-      if (!invoiceID) {
-        const wrapped: any = new Error(createRes.data?.message ?? createRes.data?.Message ?? 'Order could not be held.');
-        wrapped.response = createRes;
-        throw wrapped;
-      }
       // Mark the table Occupied + link this invoice — same lifecycle point as web's holdOrder().
       if (heldTableID) tableService.openTable(heldTableID, invoiceID).catch(() => {});
       resetOrder();
@@ -393,7 +392,7 @@ export default function SellScreen({ navigation }: Props) {
         toast('Order Held (Dev)', 'success', 'Hold simulated — no backend call succeeded.');
         return;
       }
-      toast('Hold Failed', 'error', err?.message ?? 'Could not hold order. Please try again.');
+      Alert.alert('Hold Failed', failureText(err, 'Could not hold order. Please try again.'));
     } finally {
       setHolding(false);
     }
@@ -839,17 +838,68 @@ export default function SellScreen({ navigation }: Props) {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={customerModalVisible} transparent animationType="slide" onRequestClose={() => setCustomerModalVisible(false)}>
+      <Modal visible={customerModalVisible} transparent animationType="slide" onRequestClose={closeCustomerModal}>
         <View style={styles.sidebarOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setCustomerModalVisible(false)} />
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeCustomerModal} />
           <View style={styles.customerSidebarCard}>
             <View style={styles.paymentHeader}>
-              <Text style={styles.modalTitle}>Customers</Text>
-              <TouchableOpacity onPress={() => setCustomerModalVisible(false)}>
+              <Text style={styles.modalTitle}>{addingCustomer ? 'New Customer' : 'Customers'}</Text>
+              <TouchableOpacity onPress={closeCustomerModal}>
                 <Icon name="times" size={16} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
 
+            {addingCustomer ? (
+              <View style={{ padding: 20, gap: 14 }}>
+                <View>
+                  <Text style={styles.formLabel}>NAME *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Customer name"
+                    placeholderTextColor={Colors.textMuted}
+                    value={newCustomer.name}
+                    onChangeText={v => setNewCustomer(c => ({ ...c, name: v }))}
+                    autoFocus
+                  />
+                </View>
+                <View>
+                  <Text style={styles.formLabel}>PHONE</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="+966 5x xxx xxxx"
+                    placeholderTextColor={Colors.textMuted}
+                    value={newCustomer.phone}
+                    onChangeText={v => setNewCustomer(c => ({ ...c, phone: v }))}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+                <View>
+                  <Text style={styles.formLabel}>EMAIL</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Optional"
+                    placeholderTextColor={Colors.textMuted}
+                    value={newCustomer.email}
+                    onChangeText={v => setNewCustomer(c => ({ ...c, email: v }))}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                  <TouchableOpacity style={[styles.formBtn, styles.formBtnSecondary]} onPress={() => setAddingCustomer(false)} disabled={savingCustomer}>
+                    <Text style={styles.formBtnSecondaryText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.formBtn, (!newCustomer.name.trim() || savingCustomer) && { opacity: 0.5 }]}
+                    onPress={saveNewCustomer}
+                    disabled={!newCustomer.name.trim() || savingCustomer}
+                  >
+                    {savingCustomer ? <ActivityIndicator color="#fff" /> : <Text style={styles.formBtnText}>Save & Select</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+            <>
             <View style={{ padding: 20, paddingBottom: 0 }}>
               <View style={styles.searchWrap}>
                 <Icon name="search" size={13} color={Colors.textMuted} />
@@ -861,7 +911,7 @@ export default function SellScreen({ navigation }: Props) {
                   onChangeText={setCustomerSearch}
                 />
               </View>
-              <TouchableOpacity style={styles.addCustomerBtn} onPress={() => Alert.alert('Add Customer', 'Coming soon.')}>
+              <TouchableOpacity style={styles.addCustomerBtn} onPress={() => setAddingCustomer(true)}>
                 <Icon name="plus" size={12} color={Colors.primary} />
                 <Text style={styles.addCustomerText}>Add New Customer</Text>
               </TouchableOpacity>
@@ -876,7 +926,7 @@ export default function SellScreen({ navigation }: Props) {
               ListHeaderComponent={
                 <TouchableOpacity
                   style={[styles.deviceRow, !cart.customer && styles.deviceRowActive]}
-                  onPress={() => { cart.setCustomer(null); setCustomerModalVisible(false); }}
+                  onPress={() => { cart.setCustomer(null); closeCustomerModal(); }}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.deviceRowName}>Walk-in Customer</Text>
@@ -891,7 +941,7 @@ export default function SellScreen({ navigation }: Props) {
                 return (
                   <TouchableOpacity
                     style={[styles.deviceRow, sel && styles.deviceRowActive]}
-                    onPress={() => { cart.setCustomer(item); setCustomerModalVisible(false); }}
+                    onPress={() => { cart.setCustomer(item); closeCustomerModal(); }}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.deviceRowName}>{item.businessName || item.name}</Text>
@@ -902,6 +952,8 @@ export default function SellScreen({ navigation }: Props) {
                 );
               }}
             />
+            </>
+            )}
           </View>
         </View>
       </Modal>
@@ -1009,6 +1061,10 @@ export default function SellScreen({ navigation }: Props) {
           const paidTableID = cart.tableID;
           try {
             const result = await orderService.createOrder({
+              // Paying a resumed held order updates it in place (PUT) rather
+              // than creating a second invoice next to the unpaid one.
+              existingInvoiceID: cart.checkoutInvoiceID,
+              existingShiftOrderNo: cart.checkoutShiftOrderNo,
               shiftID: activeShift.shiftID,
               shiftOrderCount: activeShift.orderCount,
               branchID: user?.branchID ?? null,
@@ -1056,7 +1112,9 @@ export default function SellScreen({ navigation }: Props) {
               printAndNotify(data);
               return;
             }
-            toast('Payment Failed', 'error', err?.message ?? 'Please try again.');
+            // Native alert, not a toast: toasts render behind the payment
+            // modal, so a failed checkout used to look like nothing happened.
+            Alert.alert('Payment Failed', failureText(err, 'Please try again.'));
           }
         }}
         total={cart.grandTotal()}
@@ -1081,6 +1139,16 @@ export default function SellScreen({ navigation }: Props) {
       )}
     </View>
   );
+}
+
+// Error text for a failed hold/checkout, with the HTTP status for real HTTP
+// errors, so a rejection can be told apart from a network problem.
+function failureText(err: any, fallback: string): string {
+  // Only real HTTP errors get the status: a 200 with status 2 is a business
+  // rule rejection (e.g. out of stock) whose message already says it all.
+  const status = err?.response?.status;
+  const msg = err?.message || fallback;
+  return status && status >= 400 ? `${msg} (HTTP ${status})` : msg;
 }
 
 function CategoryPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -1592,6 +1660,15 @@ const styles = StyleSheet.create({
   customerSidebarCard: { width: 420, maxWidth: '85%', height: '100%', backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderBottomLeftRadius: 20, overflow: 'hidden' },
   addCustomerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, alignSelf: 'flex-start' },
   addCustomerText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  formLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  formInput: {
+    height: 50, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
+    paddingHorizontal: 14, fontSize: 16, color: Colors.text,
+  },
+  formBtn: { flex: 1, height: 50, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  formBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  formBtnSecondary: { backgroundColor: Colors.surfaceAlt },
+  formBtnSecondaryText: { fontSize: 15, fontWeight: '700', color: Colors.text },
   deviceRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.divider },
   deviceRowActive: { backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 8 },
   deviceRowName: { fontSize: 14, fontWeight: '700', color: Colors.text },

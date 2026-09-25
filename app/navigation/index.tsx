@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { setUnauthorizedHandler } from '../services/api';
+import { resetSessionCaches } from '../services/authService';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
 import { useShiftStore } from '../store/shiftStore';
 import { deviceService } from '../services/deviceService';
 import { shiftService } from '../services/shiftService';
+import { useSessionStore, profileFromBootstrap } from '../store/sessionStore';
 import { useProductStore } from '../store/productStore';
 import { Colors } from '../utils/colors';
 
@@ -34,6 +37,7 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export default function Navigation() {
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -44,6 +48,22 @@ export default function Navigation() {
   const setUser = useAuthStore(s => s.setUser);
   const clearAuth = useAuthStore(s => s.clearAuth);
   const setShift = useShiftStore(s => s.setShift);
+
+  // Any authenticated request answered with 401 (expired or revoked token)
+  // ends the session and returns to the passcode screen. A wrong passcode at
+  // login is not affected: the user isn't authenticated yet at that point.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (!useAuthStore.getState().isAuthenticated) return;
+      resetSessionCaches();
+      clearAuth();
+      if (navigationRef.isReady()) {
+        navigationRef.reset({ index: 0, routes: [{ name: 'PinLogin' }] });
+      }
+    });
+    return () => setUnauthorizedHandler(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -57,11 +77,31 @@ export default function Navigation() {
           // just because Sell mounts, same as a fresh PinLogin does.
           useProductStore.getState().load().catch(() => {});
           try {
-            const shift = await shiftService.getActive();
-            if (shift) setShift(shift);
+            // One call restores the active shift, tax, and table layout.
+            // Tax in particular was never restored on cold start before this
+            // (only at passcode login), so orders after an app restart went
+            // out with 0 VAT.
+            const b = await useSessionStore.getState().load(session.user.branchID);
+            if (b.activeShift) setShift(b.activeShift);
+            // Refresh the stored profile (currency/company/industry) in case
+            // it changed on the dashboard since this session was created.
+            setUser({ ...session.user, ...profileFromBootstrap(b) });
           } catch (err: any) {
             // Token rejected server-side — fall back to the passcode screen.
-            if (err?.response?.status === 401) clearAuth();
+            if (err?.response?.status === 401) {
+              clearAuth();
+            } else {
+              // Bootstrap failed for another reason (typically a timeout on a
+              // cold server). Don't treat that as "no open shift": that
+              // routes to Start New Shift and invites a duplicate shift. Ask
+              // the lightweight shift endpoint directly instead.
+              try {
+                const shift = await shiftService.getActive();
+                if (shift) setShift(shift);
+              } catch (e: any) {
+                if (e?.response?.status === 401) clearAuth();
+              }
+            }
           }
         }
       } finally {
@@ -87,7 +127,7 @@ export default function Navigation() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName={getInitialRoute()}
         screenOptions={{ headerShown: false, animation: 'fade' }}

@@ -1,53 +1,19 @@
 import * as SecureStore from 'expo-secure-store';
-import api from './api';
+import { useSessionStore } from '../store/sessionStore';
+import { useProductStore } from '../store/productStore';
+import { productCatalogService } from './productCatalogService';
 import { PosUser } from '../types';
 
 const TOKEN_KEY = 'pos_token';
 const USER_KEY  = 'pos_user';
 
-export interface ResolvedProfile {
-  currency: string;
-  currencyID: number | null;
-  companyName?: string;
-  companyAddress?: string;
-  companyPhone?: string;
-  companyLogoUrl?: string;
-  industryType?: string;
-}
-
-export async function resolveCurrency(userID: number): Promise<ResolvedProfile> {
-  try {
-    console.log(`[Auth] fetching /user/get/${userID}`);
-    const [userRes, currencyRes] = await Promise.all([
-      api.get(`/user/get/${userID}`),
-      api.get('/get/currencies'),
-    ]);
-
-    console.log('[Auth] /user/get raw response:', JSON.stringify(userRes.data));
-
-    const u = userRes.data?.data ?? userRes.data ?? {};
-    const currencyID: number | null = u?.currencyID ?? null;
-    const currencies: any[] = Array.isArray(currencyRes.data) ? currencyRes.data : [];
-    const match = currencies.find(c => c.id == currencyID);
-    const currency: string = match?.currency ?? 'SAR';
-
-    const profile = {
-      currency,
-      currencyID,
-      companyName:    u?.company,
-      companyAddress: u?.address,
-      companyPhone:   u?.contactNo,
-      companyLogoUrl: u?.imagePath,
-      // Normalized like web's auth.service.ts: anything other than the exact
-      // string "restaurant" (case-insensitive) is treated as "retail".
-      industryType:   (String(u?.industryType ?? 'retail').toLowerCase() === 'restaurant') ? 'restaurant' : 'retail',
-    };
-    console.log('[Auth] resolved profile:', JSON.stringify(profile));
-    return profile;
-  } catch (e: any) {
-    console.log('[Auth] /user/get FAILED:', e?.message, e?.response?.status, JSON.stringify(e?.response?.data));
-    return { currency: 'SAR', currencyID: null, industryType: 'retail' };
-  }
+// Session-scoped caches (bootstrap, menu, per-product option configs) must not
+// survive into the next staff member's / device's session — call on every
+// logout, Switch Device, and fresh passcode login.
+export function resetSessionCaches(): void {
+  useSessionStore.getState().reset();
+  useProductStore.getState().reset();
+  productCatalogService.clear();
 }
 
 export const authService = {
@@ -55,6 +21,7 @@ export const authService = {
     // Ends the staff session only — device claim (pos_device_unique_id /
     // pos_device_authenticated_code) is left intact so the next staff
     // member only has to enter their passcode.
+    resetSessionCaches();
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_KEY);
   },

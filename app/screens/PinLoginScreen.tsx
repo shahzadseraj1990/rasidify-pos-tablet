@@ -6,11 +6,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import { useAuthStore } from '../store/authStore';
 import { useShiftStore } from '../store/shiftStore';
-import { useTaxStore } from '../store/taxStore';
 import { useProductStore } from '../store/productStore';
+import { useSessionStore } from '../store/sessionStore';
 import { deviceService } from '../services/deviceService';
 import { shiftService } from '../services/shiftService';
-import api from '../services/api';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import LogoDarkBg from '../components/LogoDarkBg';
@@ -29,7 +28,6 @@ export default function PinLoginScreen({ navigation }: Props) {
 
   const setUser = useAuthStore(s => s.setUser);
   const setShift = useShiftStore(s => s.setShift);
-  const setTax = useTaxStore(s => s.setTax);
   const setDeviceAuthenticated = useAuthStore(s => s.setDeviceAuthenticated);
 
   const shake = () => {
@@ -60,30 +58,32 @@ export default function PinLoginScreen({ navigation }: Props) {
     try {
       const { user } = await deviceService.deviceLogin(code);
       setUser(user);
+      // Fire-and-forget: the menu is cached for the whole session (see
+      // productStore.load) so Sell never fetches it just because it remounted.
+      useProductStore.getState().load().catch(() => {});
       try {
-        const [shift, taxRes] = await Promise.all([
-          shiftService.getActive(),
-          api.get('/tax/all').catch(() => null),
-          // Fire-and-forget: products/categories are cached for the whole
-          // session (see productStore.load) so Sell never needs to fetch
-          // them itself just because it remounted. Don't block login on
-          // this — SellScreen shows its own loading state if it beats this.
-          useProductStore.getState().load().catch(() => {}),
-        ]);
-        if (taxRes) {
-          const taxes: any[] = Array.isArray(taxRes.data?.data)
-            ? taxRes.data.data
-            : Array.isArray(taxRes.data) ? taxRes.data : [];
-          const active = taxes.filter((t: any) => t.status !== 0);
-          const def = active.find((t: any) => t.isDefault) ?? active[0];
-          if (def) setTax(def.percentageRate ?? 0, def.taxName ?? 'Tax', def.taxID ?? 0);
-        }
-        if (shift) {
-          setShift(shift);
+        // Already fetched inside deviceLogin — this returns the cached copy
+        // (or retries once if that attempt failed). Tax + table layout are
+        // applied to their stores by the session store itself.
+        const { activeShift } = await useSessionStore.getState().load(user.branchID);
+        if (activeShift) {
+          setShift(activeShift);
           navigation.replace('Shell');
           return;
         }
-      } catch {}
+      } catch {
+        // Bootstrap failed (e.g. cold-server timeout): check the shift
+        // directly rather than assuming none is open, which would offer
+        // Start New Shift and risk a duplicate shift.
+        try {
+          const shift = await shiftService.getActive();
+          if (shift) {
+            setShift(shift);
+            navigation.replace('Shell');
+            return;
+          }
+        } catch {}
+      }
       navigation.replace('ShiftStart');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Invalid passcode. Please try again.';

@@ -5,7 +5,7 @@ import Icon from '../components/Icon';
 import Money from '../components/Money';
 import { useShiftStore } from '../store/shiftStore';
 import { useAuthStore } from '../store/authStore';
-import api from '../services/api';
+import { posApi } from '../services/api';
 
 interface ShiftSummary {
   totalSales: number;
@@ -58,7 +58,7 @@ export default function ReportsScreen() {
     if (!shiftID) return;
     setLoading(true);
     try {
-      const res = await api.get(`/pos/shift/${shiftID}/summary`);
+      const res = await posApi.get(`/pos/shift/${shiftID}/summary`);
       const d = res.data?.data ?? res.data;
       setSummary(d?.summary ?? null);
       setPayments(d?.payments ?? []);

@@ -7,7 +7,8 @@ import { useAuthStore } from '../store/authStore';
 import { useShiftStore } from '../store/shiftStore';
 import { useCartStore } from '../store/cartStore';
 import { useTableStore } from '../store/tableStore';
-import api from '../services/api';
+import { posApi } from '../services/api';
+import { cartItemsFromInvoiceLines, customerFromInvoice } from '../utils/invoiceLines';
 import { PosTable, POS_TABLE_STATUS } from '../types';
 
 type Props = { onStartOrder: () => void };
@@ -89,24 +90,17 @@ export default function TablesScreen({ onStartOrder }: Props) {
     if (!t.currentInvoiceID) return;
     setBusyTableID(t.tableID);
     try {
-      const res = await api.get(`/invoicing/get/invoice/${t.currentInvoiceID}`);
+      const res = await posApi.get(`/pos/order/${t.currentInvoiceID}`);
       const full = res.data?.invoice ?? res.data?.data ?? res.data;
       cart.clearCart();
       const items = full?.line_items ?? [];
-      items.forEach((li: any) => {
-        cart.addItem({
-          productID: li.productID ?? li.ItemID ?? 0,
-          name: li.description ?? li.name ?? li.productName ?? '',
-          sku: li.sku ?? '',
-          price: li.unitPrice ?? li.price ?? 0,
-          qty: li.qty ?? li.quantity ?? 1,
-          discount: li.discount ?? 0,
-          taxRate: li.taxRate ?? 0,
-        });
-      });
+      // Shared mapper: keeps product names, prices and modifier/combo selections
+      // intact, since the order is saved back in place (PUT) when paid or re-held.
+      cartItemsFromInvoiceLines(items).forEach(item => cart.addItem(item));
       if (full?.discount) cart.setDiscount(full.discount);
       if (full?.orderTypeID) cart.setOrderType(full.orderTypeID);
       if (full?.customerNote) cart.setOrderNote(full.customerNote);
+      cart.setCustomer(customerFromInvoice(full));
       cart.setCheckoutInvoice(t.currentInvoiceID, full?.shiftOrderNo ?? 0);
       cart.setTable(t.tableID, t.name);
       onStartOrder();

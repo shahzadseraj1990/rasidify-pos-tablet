@@ -9,7 +9,9 @@ import Money from '../components/Money';
 import { useShiftStore } from '../store/shiftStore';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import api from '../services/api';
+import { posApi } from '../services/api';
+import { cartItemsFromInvoiceLines, customerFromInvoice } from '../utils/invoiceLines';
+import { useSessionStore } from '../store/sessionStore';
 import { PosOrder } from '../types';
 
 const PAGE_SIZE = 30;
@@ -104,8 +106,9 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
 
   async function loadOrderTypes() {
     try {
-      const res = await api.get('/pos/order-types');
-      setOrderTypes(res.data?.data ?? res.data ?? []);
+      // From the session bootstrap (cached) — no separate order-types call.
+      const b = await useSessionStore.getState().load(useAuthStore.getState().user?.branchID ?? null);
+      setOrderTypes(b.orderTypes as any);
     } catch {}
   }
 
@@ -116,7 +119,7 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
     const all = overrideAllShifts ?? showAllShifts;
     const sid = all ? 0 : shiftID;
     try {
-      const res = await api.get(`/pos/orders?status=0&page=${p}&pageSize=${PAGE_SIZE}&search=${encodeURIComponent(s)}&orderTypeID=${ot}&shiftID=${sid}`);
+      const res = await posApi.get(`/pos/orders?status=0&page=${p}&pageSize=${PAGE_SIZE}&search=${encodeURIComponent(s)}&orderTypeID=${ot}&shiftID=${sid}`);
       const data = res.data?.data ?? res.data;
       const list: PosOrder[] = data?.invoices ?? (Array.isArray(data) ? data : []);
       const total = data?.pageCount?.totalCount ?? list.length;
@@ -157,7 +160,7 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
   async function fetchDetail(order: PosOrder) {
     setDetailLoading(true);
     try {
-      const res = await api.get(`/invoicing/get/invoice/${order.invoiceID}`);
+      const res = await posApi.get(`/pos/order/${order.invoiceID}`);
       const full = res.data?.invoice ?? res.data?.data ?? res.data;
       const norm: any = {
         ...full,
@@ -173,20 +176,13 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
   function resumeHeldOrder(order: OrderDetail) {
     const items = order.line_items ?? [];
     cart.clearCart();
-    items.forEach((li: any) => {
-      cart.addItem({
-        productID: li.productID ?? li.ItemID ?? 0,
-        name: li.description ?? li.name ?? '',
-        sku: li.sku ?? '',
-        price: li.unitPrice ?? li.price ?? 0,
-        qty: li.qty ?? li.quantity ?? 1,
-        discount: li.discount ?? 0,
-        taxRate: li.taxRate ?? 0,
-      });
-    });
+    // Shared mapper: keeps product names, prices and modifier/combo selections
+    // intact, since the order is saved back in place (PUT) when paid or re-held.
+    cartItemsFromInvoiceLines(items).forEach(item => cart.addItem(item));
     if (order.discount) cart.setDiscount(order.discount);
     if (order.orderTypeID) cart.setOrderType(order.orderTypeID);
     if (order.customerNote) cart.setOrderNote(order.customerNote);
+    cart.setCustomer(customerFromInvoice(order));
     if (order.tableNo) cart.setTable(order.tableID ?? null, order.tableNo);
     cart.setCheckoutInvoice(order.invoiceID, order.shiftOrderNo ?? 0);
     setSelected(null);

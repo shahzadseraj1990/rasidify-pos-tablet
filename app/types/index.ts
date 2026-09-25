@@ -9,13 +9,13 @@ export interface PosUser {
   currency: string;
   currencyID: number | null;
   rights: FormPermissionGroup[];
-  // Store/company info — from GET /user/get/{userID}, used as the source of
+  // Store/company info — from the session bootstrap's `user`, used as the source of
   // truth for receipt printing (Receipt Settings fields are manual overrides).
   companyName?: string;
   companyAddress?: string;
   companyPhone?: string;
   companyLogoUrl?: string;
-  // "restaurant" | "retail" — from GET /user/get/{userID}. Gates the Tables
+  // "restaurant" | "retail" — from the session bootstrap's `user`. Gates the Tables
   // tab; only "restaurant" shows it (mirrors web's pos_industry_type flag).
   industryType?: string;
 }

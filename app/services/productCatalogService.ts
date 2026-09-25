@@ -1,44 +1,38 @@
-import api from './api';
 import { ProductPosConfig } from '../types';
+import { useProductStore } from '../store/productStore';
 
-// Cached per productID for the whole session — mirrors productStore's
-// products/categories cache. A product's modifier/combo config essentially
-// never changes mid-shift, and every plain product tap also hits this
-// endpoint (to check whether it has any options at all), so caching keeps
-// the common case (a plain product with no options) fast after the first tap.
+// Per-product option configs (variants / modifier groups / combos / bundles).
+// Filled in one go from GET /pos/catalog/menu (see productStore.load) — there
+// is no per-product endpoint call any more; the old
+// /product-variants/pos-config/{id} fan-out is gone.
 const _cache = new Map<number, ProductPosConfig>();
-const _inFlight = new Map<number, Promise<ProductPosConfig>>();
 
-function normalizeConfig(raw: any): ProductPosConfig {
-  return {
-    product:        raw.product ?? {},
-    variants:       Array.isArray(raw.variants) ? raw.variants : [],
-    modifierGroups: Array.isArray(raw.modifierGroups) ? raw.modifierGroups : [],
-    modifiers:      Array.isArray(raw.modifiers) ? raw.modifiers : [],
-    comboGroups:    Array.isArray(raw.comboGroups) ? raw.comboGroups : [],
-    comboItems:     Array.isArray(raw.comboItems) ? raw.comboItems : [],
-    bundleItems:    Array.isArray(raw.bundleItems) ? raw.bundleItems : [],
-  };
-}
+const EMPTY: Omit<ProductPosConfig, 'product'> = {
+  variants: [], modifierGroups: [], modifiers: [], comboGroups: [], comboItems: [], bundleItems: [],
+};
 
 export const productCatalogService = {
-  async getPosConfig(productID: number, force = false): Promise<ProductPosConfig> {
-    if (!force && _cache.has(productID)) return _cache.get(productID)!;
-    if (!force && _inFlight.has(productID)) return _inFlight.get(productID)!;
+  setAll(configs: ProductPosConfig[]): void {
+    _cache.clear();
+    for (const c of configs) _cache.set(c.product.productID, c);
+  },
 
-    const p = (async () => {
-      try {
-        const res = await api.get(`/product-variants/pos-config/${productID}`);
-        const raw = res.data?.data ?? res.data?.Data ?? res.data ?? {};
-        const config = normalizeConfig(raw);
-        _cache.set(productID, config);
-        return config;
-      } finally {
-        _inFlight.delete(productID);
-      }
-    })();
-    _inFlight.set(productID, p);
-    return p;
+  clear(): void {
+    _cache.clear();
+  },
+
+  // Kept async so callers don't change: if the menu is still loading (e.g. a
+  // tap right after login), wait for it instead of reporting "no options".
+  async getPosConfig(productID: number): Promise<ProductPosConfig> {
+    if (!_cache.has(productID)) {
+      await useProductStore.getState().load().catch(() => {});
+    }
+    const cached = _cache.get(productID);
+    if (cached) return cached;
+    // Not in the menu (e.g. an inactive product referenced by a combo) — treat
+    // as a plain product with no options rather than blocking the sale.
+    const p = useProductStore.getState().products.find(x => x.productID === productID);
+    return { product: { productID, type: p?.type ?? '', name: p?.name ?? '', price: p?.price ?? 0 }, ...EMPTY };
   },
 
   hasOptions(config: ProductPosConfig): boolean {

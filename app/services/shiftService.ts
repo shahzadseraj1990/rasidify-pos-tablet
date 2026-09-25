@@ -1,9 +1,9 @@
-import api from './api';
+import { posApi } from './api';
 import { PosShift, PosShiftSummary, PaymentBreakdown, OrderType } from '../types';
 
 export const shiftService = {
   async getActive(): Promise<PosShift | null> {
-    const res = await api.get('/pos/shift/active');
+    const res = await posApi.get('/pos/shift/active');
     return res.data?.data ?? null;
   },
 
@@ -14,7 +14,7 @@ export const shiftService = {
     };
     if (dto.branchID != null) payload.branchID = dto.branchID;
 
-    const res = await api.post('/pos/shift/start', payload);
+    const res = await posApi.post('/pos/shift/start', payload);
     const d = res.data;
     console.log('[START SHIFT] Response:', JSON.stringify(d));
 
@@ -29,7 +29,7 @@ export const shiftService = {
       closingNotes: dto.closingNotes ?? '',
       zReportData:  dto.zReportData ?? '',
     };
-    const res = await api.post(`/pos/shift/${id}/end`, payload);
+    const res = await posApi.post(`/pos/shift/${id}/end`, payload);
     // Treat explicit status:0 as failure, anything else (including void 200) as success
     if (res?.data?.status === 0 || res?.data?.success === false) {
       throw new Error(res.data?.message ?? res.data?.Message ?? 'Failed to end shift');
@@ -42,11 +42,11 @@ export const shiftService = {
     entries: any[];
     orderTypes: any[];
   }> {
-    const res = await api.get(`/pos/shift/${id}/summary`);
+    const res = await posApi.get(`/pos/shift/${id}/summary`);
     return res.data?.data;
   },
 
   async addCashEntry(id: number, dto: { entryType: number; amount: number; notes?: string }): Promise<void> {
-    await api.post(`/pos/shift/${id}/cash-entry`, dto);
+    await posApi.post(`/pos/shift/${id}/cash-entry`, dto);
   },
 };

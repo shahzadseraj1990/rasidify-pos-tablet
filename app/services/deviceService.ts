@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import api from './api';
-import { resolveCurrency } from './authService';
+import { posApi } from './api';
+import { resetSessionCaches } from './authService';
+import { useSessionStore, profileFromBootstrap } from '../store/sessionStore';
 import { PosUser } from '../types';
 
 const DEVICE_UNIQUE_ID_KEY = 'pos_device_unique_id';
@@ -58,7 +59,7 @@ export const deviceService = {
       vendorIdentifier: '',
       serialNumber: '',
     };
-    const res = await api.post('/pos/device/authenticate', body);
+    const res = await posApi.post('/pos/device/authenticate', body);
     const code: string | undefined = res.data?.data?.authenticatedCode;
     // Matches web's auth.service.ts: status is numeric (1 = success), not the
     // string "Success" shown in the spec doc's example — the code's presence
@@ -74,7 +75,7 @@ export const deviceService = {
   async deviceLogin(passcode: string): Promise<{ token: string; user: PosUser }> {
     const deviceUniqueID = await deviceService.getDeviceUniqueId();
     const authenticatedCode = (await deviceService.getDeviceAuthenticatedCode()) ?? '';
-    const res = await api.post('/pos/device-login', { deviceUniqueID, authenticatedCode, passcode });
+    const res = await posApi.post('/pos/device-login', { deviceUniqueID, authenticatedCode, passcode });
 
     const token: string = res.data.token;
     const u = res.data.authenticatedUser;
@@ -82,10 +83,21 @@ export const deviceService = {
       throw new Error(res.data?.message ?? 'Invalid passcode. Please try again.');
     }
 
-    // Store token first so the currency/profile API calls are authenticated
+    // Fresh session: drop anything cached from a previous staff member, store
+    // the token so the bootstrap call is authenticated, then take the
+    // company/currency profile from the session bootstrap (one call instead
+    // of the old user/get + get/currencies pair).
+    resetSessionCaches();
     await SecureStore.setItemAsync(TOKEN_KEY, token);
 
-    const profile = await resolveCurrency(u.tenantID);
+    const branchID: number | null = u.branchID ?? null;
+    let profile: ReturnType<typeof profileFromBootstrap> | null = null;
+    try {
+      profile = profileFromBootstrap(await useSessionStore.getState().load(branchID, true));
+    } catch {
+      // Non-fatal: login still succeeds with defaults; PinLogin retries the
+      // bootstrap before leaving the screen.
+    }
 
     const user: PosUser = {
       userID:     u.tenantID,
@@ -93,15 +105,15 @@ export const deviceService = {
       name:       `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || 'Cashier',
       email:      u.email ?? '',
       roleID:     u.roleID,
-      branchID:   u.branchID ?? null,
-      currency:       profile.currency,
-      currencyID:     profile.currencyID,
-      companyName:    profile.companyName,
-      companyAddress: profile.companyAddress,
-      companyPhone:   profile.companyPhone,
-      companyLogoUrl: profile.companyLogoUrl,
+      branchID:   branchID,
+      currency:       profile?.currency ?? 'SAR',
+      currencyID:     profile?.currencyID ?? null,
+      companyName:    profile?.companyName,
+      companyAddress: profile?.companyAddress,
+      companyPhone:   profile?.companyPhone,
+      companyLogoUrl: profile?.companyLogoUrl,
       rights:     u.rights ?? [],
-      industryType: profile.industryType,
+      industryType: profile?.industryType ?? 'retail',
     };
 
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
@@ -128,6 +140,7 @@ export const deviceService = {
    * DeviceCode server-side — that still requires Disconnect Device from the dashboard.
    */
   async switchDevice(): Promise<void> {
+    resetSessionCaches();
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_KEY);
     await SecureStore.deleteItemAsync(DEVICE_AUTH_CODE_KEY);
