@@ -1,8 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
-} from 'react-native';
-import ViewShot, { ViewShotRef } from 'react-native-view-shot';
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { ViewShotRef } from 'react-native-view-shot';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,8 +11,9 @@ import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
 import { usePrinterStore } from '../store/printerStore';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
-import { ReceiptPaper } from '../components/receipt/ReceiptPaper';
+import { ReceiptPaper, ReceiptPrintCapture } from '../components/receipt/ReceiptPaper';
 import { printReceiptNow } from '../services/receiptPrintFlow';
+import { appAlert } from '../utils/appAlert';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ReceiptPreview'>;
 
@@ -45,7 +45,7 @@ export default function ReceiptPreviewScreen() {
 
   const handlePrint = async () => {
     if (!printer.isConfigured) {
-      Alert.alert(
+      appAlert(
         'Printer Not Configured',
         'Go to Menu → Printer Setup to configure your printer.',
         [
@@ -59,9 +59,9 @@ export default function ReceiptPreviewScreen() {
     const result = await printReceiptNow(receipt, settings, printer, viewShotRef);
     setPrinting(false);
     if (result.success) {
-      Alert.alert('Printed', 'Receipt sent to printer.');
+      appAlert('Printed', 'Receipt sent to printer.');
     } else {
-      Alert.alert('Print Failed', result.error);
+      appAlert('Print Failed', result.error);
     }
   };
 
@@ -74,10 +74,12 @@ export default function ReceiptPreviewScreen() {
 
       <View style={styles.body}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <ViewShot ref={viewShotRef} style={styles.paper} options={{ format: 'png', quality: 1 }}>
+          {/* On-screen preview only — printing captures the print copy below. */}
+          <View style={styles.paper}>
             <ReceiptPaper receipt={receipt} settings={settings} paperWidth={printer.paperWidth} />
-          </ViewShot>
+          </View>
         </ScrollView>
+        <ReceiptPrintCapture ref={viewShotRef} receipt={receipt} settings={settings} paperWidth={printer.paperWidth} />
 
         <View style={styles.actionBar}>
           <TouchableOpacity style={styles.printBtn} onPress={handlePrint} disabled={printing} activeOpacity={0.85}>

@@ -15,9 +15,14 @@ export interface PosUser {
   companyAddress?: string;
   companyPhone?: string;
   companyLogoUrl?: string;
+  vatNumber?: string;
+  // Tax settings' isTaxRegistered — gates the Phase 1 QR fallback on receipts.
+  isTaxRegistered?: boolean;
   // "restaurant" | "retail" — from the session bootstrap's `user`. Gates the Tables
   // tab; only "restaurant" shows it (mirrors web's pos_industry_type flag).
   industryType?: string;
+  // POS device record id from device-login (KDS tickets' sourceDeviceID), if the API returns it.
+  deviceID?: number | null;
 }
 
 export interface FormPermissionGroup {
@@ -182,6 +187,10 @@ export interface CartItem {
   total: number;
   selectionSummary?: string;        // "Beef Burger +3, Fries, Size: Large +2, Coke"
   lineSelections?: LineItemSelection[];
+  // Saved order line id (GET /pos/order/{id}); echoed back on PUT so the line
+  // is updated in place. Absent for lines added in this edit.
+  invoiceDetailID?: number | null;
+  kitchenNote?: string;             // per-item note for the kitchen ("no onion")
 }
 
 // ── Customer ─────────────────────────────────────────────────────────

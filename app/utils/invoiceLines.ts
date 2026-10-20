@@ -45,6 +45,8 @@ export function cartItemsFromInvoiceLines(lines: any[]): Omit<CartItem, 'lineID'
       taxRate:          li.taxRate ?? 0,
       selectionSummary: description || (lineSelections.length > 0 ? buildSelectionSummary(lineSelections) : undefined),
       lineSelections:   lineSelections.length > 0 ? lineSelections : undefined,
+      invoiceDetailID:  Number(li.invoiceDetailID ?? li.InvoiceDetailID ?? 0) || null,
+      kitchenNote:      li.kitchenNote ?? li.KitchenNote ?? undefined,
     };
   });
 }

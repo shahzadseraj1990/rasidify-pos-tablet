@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { posApi } from '../services/api';
-import { PosShift, PosTableLayout } from '../types';
+import { PosShift, PosTableLayout, PosUser } from '../types';
 import { useTaxStore } from './taxStore';
 import { useTableStore } from './tableStore';
 
@@ -93,6 +93,48 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   reset: () => set({ bootstrap: null }),
 }));
 
+// Company VAT: the profile's `vat` (what Web POS prints), else the tax settings' numbers.
+function vatFromBootstrap(b: PosBootstrap): string {
+  const ts = b.taxSettings ?? {};
+  return String(b.user?.vat || ts.vatNumber || ts.taxRegistrationNumber || '').trim();
+}
+
+export interface StoreInfo {
+  companyName: string;
+  address: string;
+  phone: string;
+  vatNumber: string;
+  logoUrl: string;
+  isTaxRegistered: boolean;
+}
+
+/**
+ * Store details printed on receipts — always the live account profile from
+ * this session's bootstrap (falling back to the profile saved at login), so a
+ * change made on the dashboard shows up after the next login/app start.
+ */
+export function getStoreInfo(user?: PosUser | null): StoreInfo {
+  const b = useSessionStore.getState().bootstrap;
+  const p = b ? profileFromBootstrap(b) : null;
+  return {
+    companyName:     p?.companyName    || user?.companyName    || '',
+    address:         p?.companyAddress || user?.companyAddress || '',
+    phone:           p?.companyPhone   || user?.companyPhone   || '',
+    vatNumber:       p?.vatNumber      || user?.vatNumber      || '',
+    logoUrl:         p?.companyLogoUrl || user?.companyLogoUrl || '',
+    isTaxRegistered: p?.isTaxRegistered ?? !!user?.isTaxRegistered,
+  };
+}
+
+/** The ReceiptData company fields for a StoreInfo. */
+export const storeFields = (s: StoreInfo) => ({
+  companyName: s.companyName,
+  address:     s.address,
+  vatNumber:   s.vatNumber,
+  phone:       s.phone,
+  logoUrl:     s.logoUrl,
+});
+
 /** Currency symbol + company info for the receipt/profile, from bootstrap.user. */
 export function profileFromBootstrap(b: PosBootstrap) {
   const u = b.user ?? {};
@@ -105,6 +147,8 @@ export function profileFromBootstrap(b: PosBootstrap) {
     companyAddress: u.address,
     companyPhone: u.contactNo,
     companyLogoUrl: u.imagePath,
+    vatNumber: vatFromBootstrap(b),
+    isTaxRegistered: !!b.taxSettings?.isTaxRegistered,
     // Anything other than exactly "restaurant" (case-insensitive) is retail,
     // same normalization as Web POS.
     industryType: String(u.industryType ?? 'retail').toLowerCase() === 'restaurant' ? 'restaurant' : 'retail',

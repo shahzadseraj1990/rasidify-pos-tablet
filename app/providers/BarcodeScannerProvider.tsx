@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef } from 'react';
-import { TextInput, StyleSheet, Keyboard } from 'react-native';
+import { TextInput, StyleSheet } from 'react-native';
 import { BarcodeScannerService } from '../services/barcode/BarcodeScannerService';
 import { BarcodeRouter } from '../services/barcode/BarcodeRouter';
 
@@ -47,10 +47,12 @@ export function BarcodeScannerProvider({ children }: { children: React.ReactNode
     // (and deliver the new field's onFocus) before deciding to reclaim focus.
     setTimeout(() => {
       if (!pausedRef.current && BarcodeRouter.hasActiveHandler() && !otherInputFocused()) {
+        // No Keyboard.dismiss() here: in RN it blurs the focused input — i.e.
+        // this capture field — which re-fires onBlur → refocus in an endless
+        // focus/blur loop. On a hardware scanner (Sunmi V3) each blur hands
+        // focus to the menu button (visible "blinking") and drops the scan's
+        // digits mid-burst, so only 3-4 random digits arrived.
         inputRef.current?.focus();
-        // Some OEM ROMs show the soft keyboard (with predictive-text
-        // suggestions) despite showSoftInputOnFocus={false} — force it away.
-        Keyboard.dismiss();
       }
     }, 250);
   }, [otherInputFocused]);
@@ -70,10 +72,20 @@ export function BarcodeScannerProvider({ children }: { children: React.ReactNode
   // handler is active is the reliable fix: it reclaims focus the moment it
   // slips, instead of trusting a single one-shot focus() call.
   useEffect(() => {
+    let orphanTicks = 0;
     const guard = setInterval(() => {
-      if (pausedRef.current || !BarcodeRouter.hasActiveHandler()) return;
+      if (!BarcodeRouter.hasActiveHandler()) return;
       if (BarcodeScannerService.isBuffering()) return; // don't interrupt a scan in flight
-      if (otherInputFocused()) return;
+      if (otherInputFocused()) { orphanTicks = 0; return; }
+      if (pausedRef.current) {
+        // Paused, yet no field holds focus: the field that paused us went away
+        // without its onBlur → resumeCapture (e.g. Cart's note input when the
+        // screen closed). Left paused, scans stopped working and the scanner's
+        // keys went to whatever button had focus. Resume after ~400ms of that.
+        if (++orphanTicks < 2) return;
+        pausedRef.current = false;
+      }
+      orphanTicks = 0;
       if (!inputRef.current?.isFocused()) inputRef.current?.focus();
     }, 200);
     return () => clearInterval(guard);

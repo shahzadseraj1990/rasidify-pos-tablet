@@ -25,7 +25,12 @@ function detectFormat(bytes: Uint8Array): 'png' | 'jpeg' | null {
   return null;
 }
 
-/** Nearest-neighbor resize of an RGBA buffer to targetWidth, preserving aspect ratio. */
+/**
+ * Resizes an RGBA buffer to targetWidth, preserving aspect ratio. Downscaling
+ * averages every source pixel under each target pixel (box filter) — picking
+ * one pixel per target (nearest-neighbour) dropped parts of thin glyph strokes
+ * and printed text ragged. Upscaling stays nearest-neighbour.
+ */
 function resizeRGBA(
   src: Uint8Array | Uint8ClampedArray,
   srcW: number,
@@ -33,7 +38,36 @@ function resizeRGBA(
   targetW: number,
 ): { data: Uint8Array; width: number; height: number } {
   const targetH = Math.max(1, Math.round((srcH * targetW) / srcW));
+  if (targetW === srcW && targetH === srcH) {
+    return { data: src instanceof Uint8Array ? src : new Uint8Array(src), width: srcW, height: srcH };
+  }
   const out = new Uint8Array(targetW * targetH * 4);
+  if (targetW < srcW) {
+    for (let y = 0; y < targetH; y++) {
+      const y0 = Math.floor((y * srcH) / targetH);
+      const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * srcH) / targetH));
+      for (let x = 0; x < targetW; x++) {
+        const x0 = Math.floor((x * srcW) / targetW);
+        const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * srcW) / targetW));
+        let r = 0, g = 0, b = 0, a = 0;
+        for (let sy = y0; sy < y1; sy++) {
+          for (let sx = x0; sx < x1; sx++) {
+            const si = (sy * srcW + sx) * 4;
+            // Premultiply so transparent pixels count as the white paper.
+            const sa = src[si + 3];
+            r += src[si] * sa; g += src[si + 1] * sa; b += src[si + 2] * sa; a += sa;
+          }
+        }
+        const n = (y1 - y0) * (x1 - x0);
+        const di = (y * targetW + x) * 4;
+        out[di]     = a ? r / a : 255;
+        out[di + 1] = a ? g / a : 255;
+        out[di + 2] = a ? b / a : 255;
+        out[di + 3] = a / n;
+      }
+    }
+    return { data: out, width: targetW, height: targetH };
+  }
   for (let y = 0; y < targetH; y++) {
     const sy = Math.min(srcH - 1, Math.floor((y * srcH) / targetH));
     for (let x = 0; x < targetW; x++) {
@@ -142,9 +176,9 @@ export async function imageUriToEscPosRaster(
   paperWidth: 58 | 80,
 ): Promise<string | null> {
   try {
-    // Cap logo width to ~45% of the paper so it prints as a small mark above
-    // the store name, not a full-width banner.
-    const logoTargetW = Math.round(DOT_WIDTH[paperWidth] * 0.45);
+    // Cap logo width to ~70% of the paper (45% printed wordmark logos too small)
+    // — still short of a full-width banner above the store name.
+    const logoTargetW = Math.round(DOT_WIDTH[paperWidth] * 0.7);
     const decoded = await decodeToMonochromeBitmap(uri, logoTargetW, 160);
     if (!decoded) return null;
     return buildRasterCommand(decoded.bitmap, decoded.width, decoded.height);

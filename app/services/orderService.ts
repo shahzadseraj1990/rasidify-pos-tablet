@@ -165,6 +165,10 @@ export const orderService = {
         amount:       vatAmt,
       }] : [],
       line_items: payload.items.map(i => ({
+        // Existing line id (0 = new line) so PUT updates lines in place
+        // instead of deleting and re-inserting them (KDS-API-CHANGES.md).
+        InvoiceDetailID:    i.invoiceDetailID ?? 0,
+        KitchenNote:        i.kitchenNote ?? '',
         ProductType:        i.type ?? 'HW',
         Action:             'general',
         ProductID:          i.productID,

@@ -35,6 +35,14 @@ export const productCatalogService = {
     return { product: { productID, type: p?.type ?? '', name: p?.name ?? '', price: p?.price ?? 0 }, ...EMPTY };
   },
 
+  // Synchronous lookup for the tap path: once the menu is loaded every
+  // product's config is already in memory, so adding to cart needs no await
+  // (and no extra render). null = menu not loaded yet — use getPosConfig.
+  peekPosConfig(productID: number): ProductPosConfig | null {
+    if (!useProductStore.getState().loaded) return null;
+    return _cache.get(productID) ?? null;
+  },
+
   hasOptions(config: ProductPosConfig): boolean {
     return config.variants.length > 0
       || config.modifierGroups.length > 0

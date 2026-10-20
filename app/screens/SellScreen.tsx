@@ -1,17 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Image, ActivityIndicator, Modal, Alert,
-  KeyboardAvoidingView, Platform, Animated, PanResponder, BackHandler, Keyboard,
-} from 'react-native';
-import ViewShot, { ViewShotRef } from 'react-native-view-shot';
+  View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Image, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, Animated, PanResponder, BackHandler, Keyboard } from 'react-native';
+import { ViewShotRef } from 'react-native-view-shot';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import { Colors } from '../utils/colors';
 import { fmt } from '../utils/format';
 import Icon from '../components/Icon';
 import Money from '../components/Money';
+import { buildDelta, sendKitchenTicket, SendTicketMeta } from '../services/kitchenTicketService';
+import { useKitchenStore } from '../store/kitchenStore';
+import { useCustomerDisplayStore, isCardMethod, isCashMethod, CardPayment } from '../store/customerDisplayStore';
+import { PAY_FINAL } from '../kds-link/protocol';
+import type { TicketItem } from '../kds-link/protocol';
 import RiyalIcon from '../components/RiyalIcon';
-import { ReceiptPaper } from '../components/receipt/ReceiptPaper';
+import { ReceiptPaper, ReceiptPrintCapture } from '../components/receipt/ReceiptPaper';
 import { orderService } from '../services/orderService';
 import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
@@ -32,7 +35,8 @@ import { buildSimpleReceipt } from '../services/escpos/ReceiptBuilder';
 import { printReceipt } from '../services/PrinterService';
 import { printReceiptNow } from '../services/receiptPrintFlow';
 import { posApi } from '../services/api';
-import { useSessionStore } from '../store/sessionStore';
+import { useSessionStore, getStoreInfo, storeFields } from '../store/sessionStore';
+import { zatcaPhase1Qr } from '../utils/zatcaPhase1Qr';
 import { DEV_MOCK_PRODUCTS, DEV_MOCK_CATEGORIES } from '../utils/devBypass';
 import { productCatalogService } from '../services/productCatalogService';
 import ProductOptionsModal from '../components/ProductOptionsModal';
@@ -40,18 +44,46 @@ import TableSelectScreen from '../components/TableSelectScreen';
 import ProductSearchPanel, { searchProducts } from '../components/ProductSearchPanel';
 import { useSearchHistoryStore } from '../store/searchHistoryStore';
 import { tableService } from '../services/tableService';
+import { appAlert } from '../utils/appAlert';
 
 const ORDER_TYPE_FALLBACK = [
   { id: -1, name: 'Pickup' },
   { id: -2, name: 'Walk-in' },
   { id: -3, name: 'Delivery' },
 ];
-const PAYMENT_METHODS = [
-  { key: 'Cash', label: 'Cash', icon: 'money-bill-wave' },
-  { key: 'Card', label: 'Card', icon: 'credit-card' },
-  { key: 'Wallet', label: 'Wallet', icon: 'wallet' },
-  { key: 'STC Pay', label: 'STC Pay', icon: 'mobile-alt' },
-];
+// Used only if the session bootstrap has no payment methods. The real list
+// comes from the server so each payment is saved with the right method ID
+// (orderService matches the method by its exact name).
+const FALLBACK_PAYMENT_METHODS = ['Cash', 'Card'];
+
+function paymentIcon(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('cash') || n.includes('نقد')) return 'money-bill-wave';
+  if (n.includes('card') || n.includes('mada') || n.includes('visa') || n.includes('credit') || n.includes('debit')) return 'credit-card';
+  if (n.includes('bank') || n.includes('transfer')) return 'university';
+  if (n.includes('wallet')) return 'wallet';
+  if (n.includes('apple') || n.includes('stc') || n.includes('pay')) return 'mobile-alt';
+  return 'money-check-alt';
+}
+
+// The cashier enters what the customer handed over; only the bill amount is
+// a payment. The excess (change) comes off cash rows first, then the rest,
+// so e.g. 100 cash on a 51.75 bill is recorded as 51.75.
+function capPaymentsToTotal(rows: { paymentMethod: string; paymentAmount: number }[], total: number) {
+  const out = rows.map(r => ({ ...r }));
+  let excess = out.reduce((s, r) => s + r.paymentAmount, 0) - total;
+  const order = [
+    ...out.map((r, i) => i).filter(i => /cash|نقد/i.test(out[i].paymentMethod)).reverse(),
+    ...out.map((r, i) => i).filter(i => !/cash|نقد/i.test(out[i].paymentMethod)).reverse(),
+  ];
+  for (const i of order) {
+    if (excess <= 0.005) break;
+    const cut = Math.min(excess, out[i].paymentAmount);
+    out[i].paymentAmount = Math.round((out[i].paymentAmount - cut) * 100) / 100;
+    excess -= cut;
+  }
+  return out.filter(r => r.paymentAmount > 0);
+}
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Shell'> };
 
@@ -76,7 +108,12 @@ export default function SellScreen({ navigation }: Props) {
   const [customDiscountValue, setCustomDiscountValue] = useState('');
   const [customDiscountType, setCustomDiscountType] = useState<'amount' | 'percent'>('amount');
   const [paymentVisible, setPaymentVisible] = useState(false);
+  // Customer display shows "please pay" while the payment dialog is open.
+  useEffect(() => { useCustomerDisplayStore.getState().setPaying(paymentVisible); }, [paymentVisible]);
   const [noteModalVisible, setNoteModalVisible] = useState(false);
+  // Per-item kitchen note being edited (cart lineID), and its draft text.
+  const [itemNoteLine, setItemNoteLine] = useState<string | null>(null);
+  const [itemNoteDraft, setItemNoteDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [holding, setHolding] = useState(false);
   const [printingBill, setPrintingBill] = useState(false);
@@ -171,7 +208,6 @@ export default function SellScreen({ navigation }: Props) {
   }, [discountPct, subtotal, discountMode]);
 
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
-  const [checkingOptions, setCheckingOptions] = useState<number | null>(null);
 
   const isDineIn = (orderTypes.find(t => t.id === cart.orderTypeID)?.name ?? '').trim().toLowerCase() === 'dine in';
 
@@ -206,18 +242,21 @@ export default function SellScreen({ navigation }: Props) {
       setOptionsProduct(item);
       return;
     }
-    setCheckingOptions(item.productID);
+    // Menu loaded (the normal case): the config is in memory, so this stays
+    // synchronous — no await, no extra render before the item lands in the
+    // cart. Only a tap before the menu finished loading waits for it.
+    const loaded = useProductStore.getState().loaded;
     try {
-      const config = await productCatalogService.getPosConfig(item.productID);
-      if (productCatalogService.hasOptions(config)) {
+      const config = loaded
+        ? productCatalogService.peekPosConfig(item.productID)
+        : await productCatalogService.getPosConfig(item.productID);
+      if (config && productCatalogService.hasOptions(config)) {
         setOptionsProduct(item);
         return;
       }
     } catch {
       // Non-fatal: if the pos-config check fails, fall back to a plain add
       // rather than blocking the cashier from selling the item at all.
-    } finally {
-      setCheckingOptions(null);
     }
     cart.addItem({
       productID: item.productID,
@@ -242,7 +281,7 @@ export default function SellScreen({ navigation }: Props) {
       addProductToCart(match);
       setSearch('');
     } else {
-      Alert.alert('Product Not Found', `No product matches barcode:\n${trimmed}`);
+      appAlert('Product Not Found', `No product matches barcode:\n${trimmed}`);
     }
   };
 
@@ -347,18 +386,51 @@ export default function SellScreen({ navigation }: Props) {
     }
   };
 
+  // Kitchen ticket for this save: only what changed since the last send
+  // (everything for a new order). Captured before the cart is reset.
+  const kitchenSnapshot = () => ({
+    items: buildDelta(cart.items, cart.kitchenSent) as TicketItem[],
+    round: cart.kitchenRounds + 1,
+    table: cart.tableNo,
+    note: cart.orderNote,
+    orderType: orderTypes.find(t => t.id === cart.orderTypeID)?.name ?? null,
+    customer: cart.customer?.name ?? null,
+    phone: cart.customer?.phone ?? null,
+  });
+  const sendToKitchen = async (k: ReturnType<typeof kitchenSnapshot>, invoiceID: number, shiftOrderNo: number): Promise<string | null> => {
+    if (k.items.length === 0) return null;
+    const meta: SendTicketMeta = {
+      invoiceID,
+      orderNo: `#${String(shiftOrderNo || invoiceID).padStart(4, '0')}`,
+      round: k.round,
+      table: k.table,
+      orderType: k.orderType,
+      customer: k.customer,
+      phone: k.phone,
+      staffName: user?.name ?? null,
+      staffUserID: user?.subUserID ?? null,
+      branchID: activeShift?.branchID ?? user?.branchID ?? null,
+      deviceID: user?.deviceID ?? null,
+      note: k.note,
+      source: 'cashier',
+    };
+    const { lan } = await sendKitchenTicket(meta, k.items);
+    return lan ? 'Sent to kitchen' : 'Kitchen offline – will send when connected';
+  };
+
   const handleHold = async () => {
     if (cart.items.length === 0) return;
     if (!activeShift) {
-      Alert.alert('No Active Shift', 'Please start a shift first.');
+      appAlert('No Active Shift', 'Please start a shift first.');
       return;
     }
     setHolding(true);
+    const kitchen = kitchenSnapshot();
     try {
       const heldTableID = cart.tableID;
       // Same payload as checkout (orderService._buildInvoice), OrderState 12.
       // A resumed held order is updated in place instead of duplicated.
-      const { invoiceID } = await orderService.holdOrder({
+      const { invoiceID, shiftOrderNo } = await orderService.holdOrder({
         existingInvoiceID: cart.checkoutInvoiceID,
         existingShiftOrderNo: cart.checkoutShiftOrderNo,
         shiftID: activeShift.shiftID,
@@ -378,10 +450,11 @@ export default function SellScreen({ navigation }: Props) {
         tableNo: cart.tableNo,
       });
       // Mark the table Occupied + link this invoice — same lifecycle point as web's holdOrder().
-      if (heldTableID) tableService.openTable(heldTableID, invoiceID).catch(() => {});
+      if (heldTableID) tableService.openTable(heldTableID, invoiceID).then(() => useKitchenStore.getState().notifyTablesChanged(heldTableID)).catch(() => {});
+      const kitchenLine = await sendToKitchen(kitchen, invoiceID, shiftOrderNo);
       resetOrder();
       setDiscountPct(0);
-      toast('Order Held', 'success', 'Find it in the Orders tab.');
+      toast('Order Held', 'success', kitchenLine ?? 'Find it in the Orders tab.');
     } catch (err: any) {
       // Same reasoning as the checkout catch below: only simulate when there's
       // genuinely no backend reachable, never when it responded with an error.
@@ -392,7 +465,7 @@ export default function SellScreen({ navigation }: Props) {
         toast('Order Held (Dev)', 'success', 'Hold simulated — no backend call succeeded.');
         return;
       }
-      Alert.alert('Hold Failed', failureText(err, 'Could not hold order. Please try again.'));
+      appAlert('Hold Failed', failureText(err, 'Could not hold order. Please try again.'));
     } finally {
       setHolding(false);
     }
@@ -401,7 +474,7 @@ export default function SellScreen({ navigation }: Props) {
   const handlePrintBill = async () => {
     if (cart.items.length === 0) return;
     if (!printer.isConfigured) {
-      Alert.alert(
+      appAlert(
         'Printer Not Configured',
         'Go to Menu → Printer Settings to configure your printer.',
         [
@@ -432,16 +505,13 @@ export default function SellScreen({ navigation }: Props) {
         time: new Date(),
         cashierName: user?.name,
         currency: user?.currency ?? 'SAR',
-        companyName: user?.companyName,
-        address: user?.companyAddress,
-        phone: user?.companyPhone,
-        logoUrl: user?.companyLogoUrl,
+        ...storeFields(getStoreInfo(user)),
       };
       const content = await buildSimpleReceipt(data, receiptSettings, printer.paperWidth);
       const result = await printReceipt(content, printer);
-      if (!result.success) Alert.alert('Print Failed', result.error);
+      if (!result.success) appAlert('Print Failed', result.error);
     } catch (err: any) {
-      Alert.alert('Print Failed', err?.message ?? 'Could not prepare bill for printing.');
+      appAlert('Print Failed', err?.message ?? 'Could not prepare bill for printing.');
     } finally {
       setPrintingBill(false);
     }
@@ -489,6 +559,27 @@ export default function SellScreen({ navigation }: Props) {
   const GRID_GAP = 14;
   const contentWidth = gridWidth != null ? gridWidth - 40 : undefined; // `left` has 20px horizontal padding on each side
   const itemWidth = contentWidth != null ? (contentWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS : undefined;
+
+  // Grid perf: one qty map per cart change (not a filter per card), and a
+  // stable onPress so memoized ProductCards only re-render when their own
+  // qty changes — a tap no longer redraws every card in the grid.
+  const qtyByProduct = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const i of cart.items) m.set(i.productID, (m.get(i.productID) ?? 0) + i.qty);
+    return m;
+  }, [cart.items]);
+  const addProductRef = useRef(addProductToCart);
+  addProductRef.current = addProductToCart;
+  const onProductPress = useCallback((p: Product) => { addProductRef.current(p); }, []);
+  const renderProduct = useCallback(({ item }: { item: Product }) => (
+    <ProductCard
+      product={item}
+      qtyInCart={qtyByProduct.get(item.productID) ?? 0}
+      onPress={onProductPress}
+      width={itemWidth}
+      currency={currency}
+    />
+  ), [qtyByProduct, onProductPress, itemWidth, currency]);
 
   return (
     <View style={styles.root}>
@@ -540,16 +631,8 @@ export default function SellScreen({ navigation }: Props) {
             key="grid-6"
             contentContainerStyle={styles.grid}
             columnWrapperStyle={{ gap: 14 }}
-            ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
-            renderItem={({ item }) => (
-              <ProductCard
-                product={item}
-                qtyInCart={cart.items.filter(i => i.productID === item.productID).reduce((s, i) => s + i.qty, 0)}
-                onPress={() => addProductToCart(item)}
-                width={itemWidth}
-                currency={currency}
-              />
-            )}
+            ItemSeparatorComponent={GridSeparator}
+            renderItem={renderProduct}
             ListEmptyComponent={<Text style={styles.emptyText}>No products found.</Text>}
           />
         )}
@@ -558,7 +641,7 @@ export default function SellScreen({ navigation }: Props) {
             query={search}
             products={products}
             currency={currency}
-            qtyInCart={id => cart.items.filter(i => i.productID === id).reduce((s, i) => s + i.qty, 0)}
+            qtyInCart={id => qtyByProduct.get(id) ?? 0}
             onSelectProduct={selectSearchResult}
             onSelectTerm={t => { setSearch(t); searchInputRef.current?.focus(); }}
             onClose={closeSearch}
@@ -645,6 +728,7 @@ export default function SellScreen({ navigation }: Props) {
               onInc={() => cart.updateQty(item.lineID, item.qty + 1)}
               onEditQty={() => openQtyEdit(item)}
               onRemove={() => cart.removeItem(item.lineID)}
+              onEditNote={() => { setItemNoteDraft(item.kitchenNote ?? ''); setItemNoteLine(item.lineID); }}
               swipeEnabled={swipeToDeleteEnabled}
             />
           )}
@@ -838,6 +922,41 @@ export default function SellScreen({ navigation }: Props) {
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal visible={itemNoteLine != null} transparent animationType="fade" onRequestClose={() => setItemNoteLine(null)}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={-120}
+        >
+          <View style={styles.customDiscountCard}>
+            <Text style={styles.modalTitle}>Kitchen Note</Text>
+            <Text style={styles.fieldLabel}>
+              {cart.items.find(i => i.lineID === itemNoteLine)?.name ?? 'Item'}
+            </Text>
+            <TextInput
+              style={styles.noteInput}
+              value={itemNoteDraft}
+              onChangeText={setItemNoteDraft}
+              placeholder="e.g. No onion, well done..."
+              placeholderTextColor={Colors.textMuted}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setItemNoteLine(null)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => { if (itemNoteLine) cart.setItemNote(itemNoteLine, itemNoteDraft.trim()); setItemNoteLine(null); }}
+              >
+                <Text style={styles.applyBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={customerModalVisible} transparent animationType="slide" onRequestClose={closeCustomerModal}>
         <View style={styles.sidebarOverlay}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeCustomerModal} />
@@ -1004,7 +1123,7 @@ export default function SellScreen({ navigation }: Props) {
         onClose={() => setPaymentVisible(false)}
         onComplete={async (rows) => {
           if (!activeShift) {
-            Alert.alert('No Active Shift', 'Start a shift before taking payments.');
+            appAlert('No Active Shift', 'Start a shift before taking payments.');
             return;
           }
           const currency = user?.currency ?? 'SAR';
@@ -1012,7 +1131,18 @@ export default function SellScreen({ navigation }: Props) {
           const totalPaid = rows.reduce((s, r) => s + r.paymentAmount, 0);
           const total = cart.grandTotal();
 
-          const buildReceiptData = (result?: { shiftOrderNo: number; invoiceID: number; invoiceCode: string; zatcaQrCode: string | null }): ReceiptData => ({
+          const store = getStoreInfo(user);
+          const buildReceiptData = (result?: { shiftOrderNo: number; invoiceID: number; invoiceCode: string; zatcaQrCode: string | null }): ReceiptData => {
+            const time = new Date();
+            // Signed Phase 2 QR from the server; if signing failed/timed out,
+            // fall back to a Phase 1 QR (same as Web POS) for a tax-registered
+            // store. No QR at all for the offline/simulated receipt (no result).
+            const zatcaQrCode = result
+              ? result.zatcaQrCode ?? (store.isTaxRegistered && store.vatNumber
+                ? zatcaPhase1Qr(store.companyName, store.vatNumber, time, total, cart.totalTax())
+                : null)
+              : null;
+            return {
             orderNumber: String(result?.shiftOrderNo ?? result?.invoiceID ?? Date.now()),
             invoiceCode: result?.invoiceCode,
             items: cart.items.map(i => ({ name: i.name, alternateName: i.nameAr, qty: i.qty, price: i.price, selections: i.selectionSummary })),
@@ -1028,15 +1158,13 @@ export default function SellScreen({ navigation }: Props) {
             orderType: orderTypeName,
             tableNo: cart.tableNo ?? undefined,
             orderNote: cart.orderNote,
-            time: new Date(),
+            time,
             cashierName: user?.name,
             currency,
-            companyName: user?.companyName,
-            address: user?.companyAddress,
-            phone: user?.companyPhone,
-            logoUrl: user?.companyLogoUrl,
-            zatcaQrCode: result?.zatcaQrCode ?? null,
-          });
+            ...storeFields(store),
+            zatcaQrCode,
+            };
+          };
 
           // Prints directly and reports success via toast — no receipt-preview
           // detour. ReceiptPreviewScreen/its route are kept in the app (manual
@@ -1059,6 +1187,8 @@ export default function SellScreen({ navigation }: Props) {
           };
 
           const paidTableID = cart.tableID;
+          const kitchen = kitchenSnapshot();
+          const recordedRows = capPaymentsToTotal(rows, total);
           try {
             const result = await orderService.createOrder({
               // Paying a resumed held order updates it in place (PUT) rather
@@ -1067,7 +1197,8 @@ export default function SellScreen({ navigation }: Props) {
               existingShiftOrderNo: cart.checkoutShiftOrderNo,
               shiftID: activeShift.shiftID,
               shiftOrderCount: activeShift.orderCount,
-              branchID: user?.branchID ?? null,
+              // Same source as Hold: the shift's branch, else the user's.
+              branchID: activeShift.branchID ?? user?.branchID ?? null,
               orderTypeID: cart.orderTypeID,
               customerID: cart.customer?.customerID ?? null,
               customerName: cart.customer?.businessName || cart.customer?.name || 'Walk-in',
@@ -1078,20 +1209,27 @@ export default function SellScreen({ navigation }: Props) {
               discount: cart.totalDiscount(),
               currency,
               items: cart.items,
-              paymentMethod: rows[0]?.paymentMethod ?? 'Cash',
-              paymentAmount: rows[0]?.paymentAmount ?? total,
-              paymentRows: rows,
+              paymentMethod: recordedRows[0]?.paymentMethod ?? 'Cash',
+              paymentAmount: recordedRows[0]?.paymentAmount ?? total,
+              paymentRows: recordedRows,
               tableID: cart.tableID,
               tableNo: cart.tableNo,
             });
+            // Paid orders still need cooking: send what the kitchen doesn't have yet.
+            sendToKitchen(kitchen, result.invoiceID, result.shiftOrderNo).catch(() => {});
             const data = buildReceiptData(result);
             setReceipt(data);
+            // Before resetOrder: the customer display keeps "thank you" up while the cart clears.
+            useCustomerDisplayStore.getState().showPaid({
+              total, paid: totalPaid, change: data.change, orderNo: data.orderNumber, zatcaQr: data.zatcaQrCode,
+              cashPaid: rows.filter(r => isCashMethod(r.paymentMethod)).reduce((sum, r) => sum + r.paymentAmount, 0),
+            });
             resetOrder();
             setDiscountPct(0);
             setPaymentVisible(false);
             printAndNotify(data);
             // Full payment frees the table — same lifecycle point as web's finishPayment().
-            if (paidTableID) tableService.releaseTable(paidTableID).catch(() => {});
+            if (paidTableID) tableService.releaseTable(paidTableID).then(() => useKitchenStore.getState().notifyTablesChanged(paidTableID)).catch(() => {});
           } catch (err: any) {
             // Only simulate a successful checkout when there's genuinely no
             // backend to reach (err.response is undefined — e.g. offline dev
@@ -1106,6 +1244,10 @@ export default function SellScreen({ navigation }: Props) {
               // full cart -> payment -> receipt flow can still be exercised.
               const data = buildReceiptData();
               setReceipt(data);
+              useCustomerDisplayStore.getState().showPaid({
+                total, paid: totalPaid, change: data.change, orderNo: data.orderNumber,
+                cashPaid: rows.filter(r => isCashMethod(r.paymentMethod)).reduce((sum, r) => sum + r.paymentAmount, 0),
+              });
               resetOrder();
               setDiscountPct(0);
               setPaymentVisible(false);
@@ -1114,7 +1256,7 @@ export default function SellScreen({ navigation }: Props) {
             }
             // Native alert, not a toast: toasts render behind the payment
             // modal, so a failed checkout used to look like nothing happened.
-            Alert.alert('Payment Failed', failureText(err, 'Please try again.'));
+            appAlert('Payment Failed', failureText(err, 'Please try again.'));
           }
         }}
         total={cart.grandTotal()}
@@ -1125,17 +1267,12 @@ export default function SellScreen({ navigation }: Props) {
       />
 
       {/* Off-screen — exists only so "Image Canvas" print mode has a rendered
-          receipt to screenshot without ever showing a preview screen. Laid
-          out normally (not display:none/width:0) since ViewShot needs real
-          dimensions to capture; pushed out of the viewport instead. */}
+          receipt to screenshot without ever showing a preview screen. */}
       {printCaptureReceipt && (
-        <View style={styles.hiddenPrintCapture} pointerEvents="none">
-          <ViewShot ref={printViewShotRef} options={{ format: 'png', quality: 1 }}>
-            <View style={styles.hiddenPrintPaper}>
-              <ReceiptPaper receipt={printCaptureReceipt} settings={receiptSettings} paperWidth={printer.paperWidth} />
-            </View>
-          </ViewShot>
-        </View>
+        <ReceiptPrintCapture
+          ref={printViewShotRef}
+          receipt={printCaptureReceipt} settings={receiptSettings} paperWidth={printer.paperWidth}
+        />
       )}
     </View>
   );
@@ -1169,14 +1306,25 @@ const SWIPE_ACTION_WIDTH = SWIPE_ACTION_BTN_WIDTH * 2;
 // The swipe gesture itself can be turned off in POS Settings — when off this
 // renders as a static row (still +/- and the trailing X, no gesture at all).
 function SwipeableCartRow({
-  item, currency, onDec, onInc, onEditQty, onRemove, swipeEnabled,
-}: { item: CartItem; currency: string; onDec: () => void; onInc: () => void; onEditQty: () => void; onRemove: () => void; swipeEnabled: boolean }) {
+  item, currency, onDec, onInc, onEditQty, onRemove, onEditNote, swipeEnabled,
+}: { item: CartItem; currency: string; onDec: () => void; onInc: () => void; onEditQty: () => void; onRemove: () => void; onEditNote: () => void; swipeEnabled: boolean }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const openRef = useRef(false);
+  // The PanResponder is created once per row, so it reads the POS Settings
+  // toggle through a ref — otherwise rows already on screen keep the value
+  // they were created with.
+  const swipeEnabledRef = useRef(swipeEnabled);
+  swipeEnabledRef.current = swipeEnabled;
+  useEffect(() => {
+    if (!swipeEnabled && openRef.current) {
+      openRef.current = false;
+      translateX.setValue(0);
+    }
+  }, [swipeEnabled, translateX]);
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, g) => swipeEnabled && Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onMoveShouldSetPanResponderCapture: (_, g) => swipeEnabledRef.current && Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderMove: (_, g) => {
         const base = openRef.current ? -SWIPE_ACTION_WIDTH : 0;
         const next = Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, base + g.dx));
@@ -1199,6 +1347,12 @@ function SwipeableCartRow({
           <Text style={styles.cartItemSelections} numberOfLines={2}>{item.selectionSummary}</Text>
         ) : null}
         <Money amount={item.price} currency={currency} style={styles.cartItemPrice} />
+        <TouchableOpacity style={styles.itemNoteBtn} onPress={onEditNote} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <Icon name="sticky-note" size={10} color={item.kitchenNote ? '#B45309' : Colors.textMuted} />
+          <Text style={[styles.itemNoteText, item.kitchenNote ? styles.itemNoteTextSet : null]} numberOfLines={1}>
+            {item.kitchenNote || 'Kitchen note'}
+          </Text>
+        </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.qtyBtn} onPress={onDec} hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
         <Icon name="minus" size={11} color={Colors.text} />
@@ -1239,9 +1393,11 @@ function SwipeableCartRow({
   );
 }
 
-function ProductCard({ product, qtyInCart, onPress, width, currency }: { product: Product; qtyInCart: number; onPress: () => void; width?: number; currency: string }) {
+const GridSeparator = () => <View style={{ height: 14 }} />;
+
+const ProductCard = React.memo(function ProductCard({ product, qtyInCart, onPress, width, currency }: { product: Product; qtyInCart: number; onPress: (p: Product) => void; width?: number; currency: string }) {
   return (
-    <TouchableOpacity style={[styles.productCard, width != null && { flexBasis: width }, qtyInCart > 0 && styles.productCardActive]} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.productCard, width != null && { flexBasis: width }, qtyInCart > 0 && styles.productCardActive]} onPress={() => onPress(product)} activeOpacity={0.85}>
       <View style={styles.productImageWrap}>
         {product.imageUrl ? (
           <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
@@ -1260,7 +1416,7 @@ function ProductCard({ product, qtyInCart, onPress, width, currency }: { product
       <Money amount={product.price} currency={currency} style={styles.productPrice} />
     </TouchableOpacity>
   );
-}
+});
 
 function TotalRow({ label, value, danger }: { label: string; value: React.ReactNode; danger?: boolean }) {
   return (
@@ -1274,7 +1430,19 @@ function TotalRow({ label, value, danger }: { label: string; value: React.ReactN
 // Split-payment entry: at most one entry per method, editable/removable — the
 // cashier can type an exact amount for each method instead of a tap always
 // consuming the full remaining balance, matching the web POS's keypad flow.
-interface PaymentEntry { method: string; amount: number; }
+//
+// Card methods with a customer display connected: the amount goes to the
+// display as tap to pay (cardRequestId); the row waits there until the
+// customer's card is approved, and Complete stays off until then. Cash + card
+// splits work the same way (each method is one row).
+interface PaymentEntry { method: string; amount: number; cardRequestId?: string; }
+
+type CardRowState = 'pending' | 'approved' | 'failed';
+function cardRowState(c: CardPayment | undefined): CardRowState | null {
+  if (!c) return null;
+  if (c.status === 'approved') return 'approved';
+  return PAY_FINAL.includes(c.status as any) ? 'failed' : 'pending';
+}
 
 function PaymentModal({
   visible, onClose, onComplete, total, subtotal, discount, tax, currency,
@@ -1284,25 +1452,77 @@ function PaymentModal({
   onComplete: (rows: { paymentMethod: string; paymentAmount: number }[]) => void;
   total: number; subtotal: number; discount: number; tax: number; currency: string;
 }) {
+  const bootMethods = useSessionStore(s => s.bootstrap?.paymentMethods);
+  const methods = useMemo(() => {
+    const names = (bootMethods ?? []).map(m => (m.name ?? '').trim()).filter(Boolean);
+    return (names.length > 0 ? names : FALLBACK_PAYMENT_METHODS).map(name => ({ key: name, label: name, icon: paymentIcon(name) }));
+  }, [bootMethods]);
   const [entries, setEntries] = useState<PaymentEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [keypadMethod, setKeypadMethod] = useState<string | null>(null);
   const [keypadValue, setKeypadValue] = useState('0');
+  const cds = useCustomerDisplayStore();
+  const cdsConnected = cds.status === 'connected';
 
   useEffect(() => {
-    if (visible) { setEntries([]); setKeypadMethod(null); }
+    if (visible) { setEntries([]); setKeypadMethod(null); useCustomerDisplayStore.getState().clearCards(); }
   }, [visible]);
 
-  const totalPaid = entries.reduce((s, e) => s + e.amount, 0);
+  const rowState = (e: PaymentEntry) => (e.cardRequestId ? cardRowState(cds.cards[e.cardRequestId]) : null);
+  // A declined / cancelled card pays nothing; a pending one counts so the
+  // cashier sees what is left for cash.
+  const counted = entries.filter(e => rowState(e) !== 'failed');
+  const totalPaid = counted.reduce((s, e) => s + e.amount, 0);
   const remaining = Math.max(0, total - totalPaid);
   const change = Math.max(0, totalPaid - total);
-  const canComplete = entries.length > 0 && totalPaid >= total - 0.001;
+  const anyPending = entries.some(e => rowState(e) === 'pending');
+  const anyFailed = entries.some(e => rowState(e) === 'failed');
+  const canComplete = counted.length > 0 && !anyPending && !anyFailed && totalPaid >= total - 0.001;
+  /** What is still due if `method`'s own row is left out (a card is charged at most this). */
+  const dueWithout = (method: string) =>
+    Math.max(0, Math.round((total - counted.filter(e => e.method !== method).reduce((s, e) => s + e.amount, 0)) * 100) / 100);
+
+  const approvedCards = entries.filter(e => rowState(e) === 'approved');
+  const closeModal = () => {
+    if (approvedCards.length > 0) {
+      appAlert(
+        'Card Payment Approved',
+        `${approvedCards.map(e => `${e.method} ${e.amount.toFixed(2)}`).join(', ')} was already charged. Complete the payment so the order is saved.`,
+        [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Close anyway', style: 'destructive', onPress: () => { cds.clearCards(); onClose(); } },
+        ],
+      );
+      return;
+    }
+    cds.clearCards(); // cancels any card still waiting on the display
+    onClose();
+  };
+
+  const startCard = (method: string, amount: number) => {
+    const id = cds.requestCard(method, amount);
+    if (!id) {
+      appAlert('Customer Display Offline', 'The card payment could not be sent to the customer display.');
+      return;
+    }
+    setEntries(prev => [...prev.filter(e => e.method !== method), { method, amount, cardRequestId: id }]);
+  };
 
   const getEntryAmount = (method: string): number | null =>
     entries.find(e => e.method === method)?.amount ?? null;
 
   const openKeypad = (method: string) => {
-    const existing = getEntryAmount(method);
+    const entry = entries.find(e => e.method === method);
+    const st = entry ? rowState(entry) : null;
+    if (st === 'approved') {
+      appAlert('Card Already Charged', `${method} ${entry!.amount.toFixed(2)} was approved and can't be changed.`);
+      return;
+    }
+    if (st === 'pending') {
+      appAlert('Waiting for Card', `The customer is paying ${method} ${entry!.amount.toFixed(2)} on the display. Cancel it first to change the amount.`);
+      return;
+    }
+    const existing = st === 'failed' ? null : getEntryAmount(method);
     const defaultAmt = existing != null ? existing.toFixed(2) : (remaining > 0 ? remaining : total).toFixed(2);
     setKeypadValue(defaultAmt);
     setKeypadMethod(method);
@@ -1323,19 +1543,58 @@ function PaymentModal({
   const confirmKeypad = () => {
     const amount = parseFloat(keypadValue) || 0;
     if (!keypadMethod || amount <= 0) return;
+    if (isCardMethod(keypadMethod) && cdsConnected) {
+      if (entries.some(e => e.method !== keypadMethod && rowState(e) === 'pending')) {
+        appAlert('Card Payment in Progress', 'Wait for the current card payment to finish first.');
+        return;
+      }
+      // No change on a card: charge at most what is still due.
+      const charge = Math.min(amount, dueWithout(keypadMethod));
+      if (charge <= 0) {
+        appAlert('Nothing Due', 'The order is already fully paid.');
+        return;
+      }
+      setKeypadMethod(null);
+      startCard(keypadMethod, charge);
+      return;
+    }
     setEntries(prev => [...prev.filter(e => e.method !== keypadMethod), { method: keypadMethod, amount }]);
     setKeypadMethod(null);
   };
 
-  const removeEntry = (method: string) => setEntries(prev => prev.filter(e => e.method !== method));
+  const removeEntry = (method: string) => {
+    const entry = entries.find(e => e.method === method);
+    const st = entry ? rowState(entry) : null;
+    if (st === 'approved') {
+      appAlert('Card Already Charged', `${method} ${entry!.amount.toFixed(2)} was approved and can't be removed.`);
+      return;
+    }
+    if (st === 'pending' && entry?.cardRequestId) {
+      const id = entry.cardRequestId;
+      if (!cdsConnected) {
+        appAlert(
+          'Customer Display Offline',
+          "The display can't confirm the cancel. Only remove this payment if the customer was NOT charged.",
+          [
+            { text: 'Keep waiting', style: 'cancel' },
+            { text: 'Remove', style: 'destructive', onPress: () => { cds.cancelCard(id, true); setEntries(prev => prev.filter(e => e.method !== method)); } },
+          ],
+        );
+        return;
+      }
+      cds.cancelCard(id); // the row turns "Cancelled" when the display confirms
+      return;
+    }
+    setEntries(prev => prev.filter(e => e.method !== method));
+  };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={closeModal}>
       <View style={styles.modalOverlay}>
         <View style={styles.paymentCard}>
           <View style={styles.paymentHeader}>
             <Text style={styles.modalTitle}>Checkout</Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={closeModal}>
               <Icon name="times" size={16} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -1347,7 +1606,7 @@ function PaymentModal({
 
               <Text style={[styles.fieldLabel, { marginTop: 20 }]}>PAYMENT METHOD</Text>
               <View style={styles.methodGrid}>
-                {PAYMENT_METHODS.map(m => {
+                {methods.map(m => {
                   const entryAmt = getEntryAmount(m.key);
                   return (
                     <TouchableOpacity
@@ -1367,6 +1626,16 @@ function PaymentModal({
                   );
                 })}
               </View>
+              {methods.some(m => isCardMethod(m.key)) && (
+                <View style={styles.cdsNote}>
+                  <Icon name={cdsConnected ? 'contactless-payment' : 'monitor-off'} library="mci" size={16} color={cdsConnected ? Colors.success : Colors.textMuted} />
+                  <Text style={styles.cdsNoteText}>
+                    {cdsConnected
+                      ? 'Card payments go to the customer display (tap to pay).'
+                      : 'Customer display not connected: card payments are recorded manually.'}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.paymentRight}>
@@ -1382,19 +1651,63 @@ function PaymentModal({
               <Text style={[styles.fieldLabel, { marginTop: 14 }]}>PAYMENTS ADDED</Text>
               <View style={styles.paymentsAdded}>
                 {entries.length === 0 && <Text style={styles.emptyCartText}>Select a payment method.</Text>}
-                {entries.map(e => (
-                  <View key={e.method} style={styles.paymentAddedRow}>
-                    <Icon name="check-circle" size={13} color={Colors.success} />
-                    <Text style={styles.paymentAddedLabel}>{e.method}</Text>
-                    <Money amount={e.amount} currency={currency} style={styles.paymentAddedAmount} />
-                    <TouchableOpacity onPress={() => openKeypad(e.method)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Icon name="edit" size={12} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeEntry(e.method)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Icon name="times" size={12} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {entries.map(e => {
+                  const st = rowState(e);
+                  const card = e.cardRequestId ? cds.cards[e.cardRequestId] : undefined;
+                  const hit = { top: 8, bottom: 8, left: 8, right: 8 };
+                  let sub: string | null = null;
+                  if (st === 'pending') {
+                    sub = card?.cancelling ? 'Cancelling…' : card?.status === 'processing' ? 'Processing card…' : 'Waiting for customer to tap…';
+                  } else if (st === 'approved') {
+                    sub = 'Approved'
+                      + (card?.cardLast4 ? ` · ${(card.cardScheme ?? 'card').toUpperCase()} ••${card.cardLast4}` : '')
+                      + (card?.approvalCode ? ` · Auth ${card.approvalCode}` : '')
+                      + (card?.simulated ? ' · TEST' : '');
+                  } else if (st === 'failed') {
+                    sub = (card?.status === 'cancelled' ? 'Cancelled' : 'Declined') + (card?.message ? ` · ${card.message}` : '');
+                  }
+                  return (
+                    <View key={e.method} style={styles.paymentAddedRow}>
+                      {st === 'pending'
+                        ? <ActivityIndicator size="small" color="#D97706" />
+                        : st === 'failed'
+                          ? <Icon name="times-circle" size={13} color={Colors.danger} />
+                          : <Icon name="check-circle" size={13} color={Colors.success} />}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.paymentAddedLabel, { flex: 0 }, st === 'failed' && { textDecorationLine: 'line-through' }]}>{e.method}</Text>
+                        {sub && (
+                          <Text
+                            style={[styles.cardSub, st === 'failed' && { color: Colors.danger }, st === 'approved' && { color: Colors.success }]}
+                            numberOfLines={1}
+                          >
+                            {sub}
+                          </Text>
+                        )}
+                      </View>
+                      <Money amount={e.amount} currency={currency} style={styles.paymentAddedAmount} />
+                      {st === 'failed' && (
+                        <TouchableOpacity onPress={() => startCard(e.method, Math.min(e.amount, dueWithout(e.method)))} hitSlop={hit}>
+                          <Text style={styles.cardAction}>Retry</Text>
+                        </TouchableOpacity>
+                      )}
+                      {st === 'pending' && !card?.cancelling && card?.status !== 'processing' && (
+                        <TouchableOpacity onPress={() => removeEntry(e.method)} hitSlop={hit}>
+                          <Text style={[styles.cardAction, { color: Colors.danger }]}>Cancel</Text>
+                        </TouchableOpacity>
+                      )}
+                      {(st === null || st === 'failed') && (
+                        <TouchableOpacity onPress={() => openKeypad(e.method)} hitSlop={hit}>
+                          <Icon name="edit" size={12} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      )}
+                      {(st === null || st === 'failed') && (
+                        <TouchableOpacity onPress={() => removeEntry(e.method)} hitSlop={hit}>
+                          <Icon name="times" size={12} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
 
               <View style={[styles.changeBox, remaining >= 0.01 && styles.changeBoxDue]}>
@@ -1502,8 +1815,6 @@ const styles = StyleSheet.create({
   // Rendered but positioned far outside the viewport — see the print-capture
   // block above. `left/top` (not opacity:0) so it's still fully laid out and
   // capturable by react-native-view-shot.
-  hiddenPrintCapture: { position: 'absolute', left: -9999, top: 0 },
-  hiddenPrintPaper: { backgroundColor: '#fff', padding: 20, width: 360 },
 
   left: { flex: 2.8, padding: 20 },
   categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
@@ -1568,6 +1879,9 @@ const styles = StyleSheet.create({
   cartRowActionText: { fontSize: 10, fontWeight: '700', color: '#fff' },
   cartRowRemoveBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   cartRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingRight: 10, backgroundColor: Colors.surface },
+  itemNoteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, alignSelf: 'flex-start' },
+  itemNoteText: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600', maxWidth: 180 },
+  itemNoteTextSet: { color: '#B45309', fontWeight: '700' },
   cartItemName: { fontSize: 14.5, fontWeight: '700', color: Colors.text },
   cartItemPrice: { fontSize: 12, color: Colors.textMuted },
   cartItemSelections: { fontSize: 11.5, color: Colors.textLight, marginTop: 1, marginBottom: 1 },
@@ -1714,6 +2028,10 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.border, marginVertical: 8 },
 
   paymentsAdded: { minHeight: 44 },
+  cardSub: { fontSize: 11.5, color: Colors.textLight, marginTop: 1 },
+  cardAction: { fontSize: 12.5, fontWeight: '800', color: Colors.primaryDark },
+  cdsNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
+  cdsNoteText: { flex: 1, fontSize: 12, color: Colors.textLight },
   paymentAddedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   paymentAddedLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
   paymentAddedAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },

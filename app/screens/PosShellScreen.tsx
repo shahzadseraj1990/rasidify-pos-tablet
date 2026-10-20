@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator, Alert,
-} from 'react-native';
+  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation';
@@ -12,6 +11,14 @@ import { authService } from '../services/authService';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import Money from '../components/Money';
+import { useCustomerDisplayStore } from '../store/customerDisplayStore';
+import { useKitchenStore } from '../store/kitchenStore';
+import { flushCloudOutbox } from '../services/kitchenTicketService';
+import { buildZReportEscPos, buildZReportHtml, ZReportInput } from '../services/zReport';
+import { printReceipt } from '../services/PrinterService';
+import { usePrinterStore } from '../store/printerStore';
+import { useToastStore } from '../store/toastStore';
+import { PosShiftSummary, PaymentBreakdown } from '../types';
 
 import SellScreen from './SellScreen';
 import OrdersScreen from './OrdersScreen';
@@ -19,6 +26,7 @@ import ReportsScreen from './ReportsScreen';
 import MenuScreen from './MenuScreen';
 import ShiftsScreen from './ShiftsScreen';
 import TablesScreen from './TablesScreen';
+import { appAlert } from '../utils/appAlert';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Shell'> };
 
@@ -40,11 +48,25 @@ export default function PosShellScreen({ navigation }: Props) {
   const [closingCash, setClosingCash] = useState('');
   const [closingNotes, setClosingNotes] = useState('');
   const [endingShift, setEndingShift] = useState(false);
+  // Fresh numbers from the server for the End Shift sheet and the Z report
+  // (activeShift's totals are only as new as the last bootstrap).
+  const [endSummary, setEndSummary] = useState<{ summary: PosShiftSummary; payments: PaymentBreakdown[]; entries: any[] } | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const printer = usePrinterStore();
+  const toast = useToastStore(s => s.show);
 
   const clearAuth = useAuthStore(s => s.clearAuth);
   const user = useAuthStore(s => s.user);
   const currency = user?.currency ?? 'SAR';
   const activeShift = useShiftStore(s => s.activeShift);
+
+  // Kitchen display (KDS): reconnect to the saved kitchen and load open tickets.
+  useEffect(() => {
+    useKitchenStore.getState().init('cashier', `Cashier · ${user?.name ?? 'POS'}`, activeShift?.branchID ?? user?.branchID ?? null);
+    useCustomerDisplayStore.getState().init(`Cashier · ${user?.name ?? 'POS'}`);
+    flushCloudOutbox().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const clearShift = useShiftStore(s => s.clearShift);
 
   const isRestaurant = user?.industryType === 'restaurant';
@@ -55,7 +77,7 @@ export default function PosShellScreen({ navigation }: Props) {
     : 0;
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    appAlert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout', style: 'destructive',
@@ -71,29 +93,67 @@ export default function PosShellScreen({ navigation }: Props) {
 
   const openEndShift = () => {
     setClosingCash(String(expectedCash.toFixed(2)));
+    setEndSummary(null);
     setEndModalVisible(true);
+    if (!activeShift) return;
+    setLoadingSummary(true);
+    shiftService.getSummary(activeShift.shiftID)
+      .then(d => {
+        if (!d?.summary) return;
+        setEndSummary({ summary: d.summary, payments: d.payments ?? [], entries: d.entries ?? [] });
+        setClosingCash((d.summary.expectedCash ?? 0).toFixed(2));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSummary(false));
   };
 
   const handleEndShift = async () => {
     const cash = parseFloat(closingCash);
     if (isNaN(cash) || cash < 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid closing cash amount.');
+      appAlert('Invalid Amount', 'Please enter a valid closing cash amount.');
       return;
     }
     if (!activeShift) return;
     setEndingShift(true);
     try {
+      // Z report: saved with the shift (same HTML as the web POS, so web can
+      // reprint it) and printed here after the shift closes.
+      const summary: PosShiftSummary = endSummary?.summary ?? {
+        shiftID: activeShift.shiftID, branchName: activeShift.branchName, cashierName: activeShift.cashierName,
+        openingCash: activeShift.openingCash, totalSales: activeShift.totalSales, totalDiscount: activeShift.totalDiscount,
+        totalTax: activeShift.totalTax, totalRefunds: activeShift.totalRefunds, totalPaidIn: activeShift.totalPaidIn,
+        totalPaidOut: activeShift.totalPaidOut, orderCount: activeShift.orderCount, expectedCash,
+        startedAt: activeShift.startedAt, statusID: activeShift.statusID,
+      };
+      const z: ZReportInput = {
+        summary: { ...summary, closingCash: cash },
+        payments: endSummary?.payments ?? [],
+        entries: endSummary?.entries ?? [],
+        businessName: user?.companyName || user?.name || '',
+        branchName: summary.branchName,
+        cashierName: summary.cashierName || user?.name,
+        currency,
+        closedAt: new Date(),
+      };
       await shiftService.end(activeShift.shiftID, {
         closingCash,
         closingNotes: closingNotes.trim() || undefined,
+        zReportData: buildZReportHtml(z),
       });
+      if (printer.isConfigured) {
+        printReceipt(buildZReportEscPos(z, printer.paperWidth), printer)
+          .then(r => toast('Shift closed', r.success ? 'success' : 'error', r.success ? 'Z report printed' : `Z report not printed: ${r.error}`))
+          .catch(() => toast('Shift closed', 'error', 'Z report not printed'));
+      } else {
+        toast('Shift closed', 'success', 'No printer set up — Z report saved only');
+      }
       clearShift();
       setEndModalVisible(false);
       navigation.replace('ShiftStart');
     } catch (err: any) {
       const d = err?.response?.data;
       const msg = d?.message ?? d?.Message ?? d?.error ?? d?.Error ?? err?.message ?? 'Please try again.';
-      Alert.alert('Failed to End Shift', msg);
+      appAlert('Failed to End Shift', msg);
     } finally {
       setEndingShift(false);
     }
@@ -150,12 +210,13 @@ export default function PosShellScreen({ navigation }: Props) {
             <Text style={styles.modalSub}>Shift #{activeShift?.shiftID}</Text>
 
             <View style={styles.summaryBox}>
-              <SummaryRow label="Total Orders" value={String(activeShift?.orderCount ?? 0)} />
-              <SummaryRow label="Total Sales" value={<Money amount={activeShift?.totalSales ?? 0} currency={currency} style={styles.summaryValue} />} />
-              <SummaryRow label="Total Discount" value={<Money amount={activeShift?.totalDiscount ?? 0} currency={currency} style={styles.summaryValue} />} />
-              <SummaryRow label="Total Tax" value={<Money amount={activeShift?.totalTax ?? 0} currency={currency} style={styles.summaryValue} />} />
+              {loadingSummary && <ActivityIndicator color={Colors.primary} style={{ marginBottom: 8 }} />}
+              <SummaryRow label="Total Orders" value={String(endSummary?.summary.orderCount ?? activeShift?.orderCount ?? 0)} />
+              <SummaryRow label="Total Sales" value={<Money amount={endSummary?.summary.totalSales ?? activeShift?.totalSales ?? 0} currency={currency} style={styles.summaryValue} />} />
+              <SummaryRow label="Total Discount" value={<Money amount={endSummary?.summary.totalDiscount ?? activeShift?.totalDiscount ?? 0} currency={currency} style={styles.summaryValue} />} />
+              <SummaryRow label="Total Tax" value={<Money amount={endSummary?.summary.totalTax ?? activeShift?.totalTax ?? 0} currency={currency} style={styles.summaryValue} />} />
               <View style={styles.divider} />
-              <SummaryRow label="Expected Cash" value={<Money amount={expectedCash} currency={currency} style={[styles.summaryValue, styles.summaryHighlight]} />} highlight />
+              <SummaryRow label="Expected Cash" value={<Money amount={endSummary?.summary.expectedCash ?? expectedCash} currency={currency} style={[styles.summaryValue, styles.summaryHighlight]} />} highlight />
             </View>
 
             <Text style={styles.fieldLabel}>Closing Cash</Text>
@@ -183,7 +244,7 @@ export default function PosShellScreen({ navigation }: Props) {
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.confirmBtn} onPress={handleEndShift} disabled={endingShift}>
-                {endingShift ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.confirmBtnText}>Close Shift</Text>}
+                {endingShift ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.confirmBtnText}>Close Shift & Print Z</Text>}
               </TouchableOpacity>
             </View>
           </View>

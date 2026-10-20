@@ -1,18 +1,19 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Alert,
-} from 'react-native';
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import { useAuthStore } from '../store/authStore';
 import { useShiftStore } from '../store/shiftStore';
 import { useProductStore } from '../store/productStore';
-import { useSessionStore } from '../store/sessionStore';
+import { useSessionStore, profileFromBootstrap } from '../store/sessionStore';
+import * as SecureStore from 'expo-secure-store';
 import { deviceService } from '../services/deviceService';
 import { shiftService } from '../services/shiftService';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
-import LogoDarkBg from '../components/LogoDarkBg';
+import RasidifyLogo from '../components/RasidifyLogo';
+import { appAlert } from '../utils/appAlert';
 
 const PASSCODE_LENGTH = 6;
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
@@ -65,7 +66,15 @@ export default function PinLoginScreen({ navigation }: Props) {
         // Already fetched inside deviceLogin — this returns the cached copy
         // (or retries once if that attempt failed). Tax + table layout are
         // applied to their stores by the session store itself.
-        const { activeShift } = await useSessionStore.getState().load(user.branchID);
+        const boot = await useSessionStore.getState().load(user.branchID);
+        const { activeShift } = boot;
+        // deviceLogin falls back to default profile values (retail, SAR, no
+        // company) when its bootstrap call was slow or failed. This load is the
+        // retry, so take the real profile from it — otherwise a restaurant
+        // loses its Tables tab until the next app restart.
+        const fixed = { ...user, ...profileFromBootstrap(boot) };
+        setUser(fixed);
+        SecureStore.setItemAsync('pos_user', JSON.stringify(fixed)).catch(() => {});
         if (activeShift) {
           setShift(activeShift);
           navigation.replace('Shell');
@@ -103,7 +112,7 @@ export default function PinLoginScreen({ navigation }: Props) {
 
   const handleSwitchDevice = () => {
     if (loading) return;
-    Alert.alert(
+    appAlert(
       'Switch Device',
       "This terminal will forget its current device link and ask for a new Device Code. An admin must disconnect the old device from the dashboard first if you want to reuse that code elsewhere.",
       [
@@ -123,7 +132,7 @@ export default function PinLoginScreen({ navigation }: Props) {
   return (
     <View style={styles.root}>
       <View style={styles.brand}>
-        <LogoDarkBg width={140} />
+        <RasidifyLogo width={140} variant="onDark" />
       </View>
 
       <Animated.View style={[styles.card, { transform: [{ translateX: shakeAnim }] }]}>

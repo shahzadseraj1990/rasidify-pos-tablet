@@ -1,15 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import Money from '../components/Money';
+import KitchenBadge from '../components/KitchenBadge';
+import { useKitchenStore } from '../store/kitchenStore';
 import { useAuthStore } from '../store/authStore';
 import { useShiftStore } from '../store/shiftStore';
 import { useCartStore } from '../store/cartStore';
 import { useTableStore } from '../store/tableStore';
 import { posApi } from '../services/api';
 import { cartItemsFromInvoiceLines, customerFromInvoice } from '../utils/invoiceLines';
+import { loadKitchenStateIntoCart } from '../services/kitchenTicketService';
 import { PosTable, POS_TABLE_STATUS } from '../types';
+import { appAlert } from '../utils/appAlert';
 
 type Props = { onStartOrder: () => void };
 
@@ -53,6 +57,27 @@ export default function TablesScreen({ onStartOrder }: Props) {
     if (branchID != null) loadLayout(branchID);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchID]);
+
+  // Keep tables current: another device may hold or pay an order. Reload when
+  // the kitchen hub says tables changed, and every 15 s as a backup.
+  const tablesVersion = useKitchenStore(s => s.tablesVersion);
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (branchID != null && tablesVersion > 0) loadLayout(branchID, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tablesVersion]);
+  useEffect(() => {
+    if (branchID == null) return;
+    const timer = setInterval(() => loadLayout(branchID, true), 15000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchID]);
+  const pullRefresh = async () => {
+    if (branchID == null) return;
+    setRefreshing(true);
+    await loadLayout(branchID, true);
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (activeFloorID == null && layout.floors.length > 0) {
@@ -102,10 +127,11 @@ export default function TablesScreen({ onStartOrder }: Props) {
       if (full?.customerNote) cart.setOrderNote(full.customerNote);
       cart.setCustomer(customerFromInvoice(full));
       cart.setCheckoutInvoice(t.currentInvoiceID, full?.shiftOrderNo ?? 0);
+      loadKitchenStateIntoCart(t.currentInvoiceID);
       cart.setTable(t.tableID, t.name);
       onStartOrder();
     } catch {
-      Alert.alert('Could Not Open Order', 'Failed to load this table’s order. Please try again.');
+      appAlert('Could Not Open Order', 'Failed to load this table’s order. Please try again.');
     } finally {
       setBusyTableID(null);
     }
@@ -130,7 +156,7 @@ export default function TablesScreen({ onStartOrder }: Props) {
     try {
       await releaseTable(t.tableID);
     } catch {
-      Alert.alert('Failed', 'Could not release this table. Please try again.');
+      appAlert('Failed', 'Could not release this table. Please try again.');
     } finally {
       setBusyTableID(null);
     }
@@ -204,7 +230,10 @@ export default function TablesScreen({ onStartOrder }: Props) {
         // staying pinned to the exact posX/posY layout stored on the dashboard —
         // this mirrors the dashboard's drag-and-drop editor 1:1 instead of
         // re-flowing tables into a grid.
-        <ScrollView contentContainerStyle={{ minWidth: '100%' }}>
+        <ScrollView
+          contentContainerStyle={{ minWidth: '100%' }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullRefresh} tintColor={Colors.primary} />}
+        >
           <ScrollView horizontal contentContainerStyle={{ minWidth: '100%' }}>
             <View style={[styles.canvas, { width: canvasSize.width, height: canvasSize.height }]}>
               {visibleTables.map(t => {
@@ -236,6 +265,7 @@ export default function TablesScreen({ onStartOrder }: Props) {
                         <Text style={[styles.tableName, { color: meta.text }]} numberOfLines={1}>{t.name}</Text>
                         <Text style={[styles.tableStatus, { color: meta.text }]} numberOfLines={1}>{meta.label}</Text>
                         {h > 70 && <Text style={styles.tableCapacity}>{t.capacity} seats</Text>}
+                        {t.currentInvoiceID ? <KitchenBadge invoiceId={t.currentInvoiceID} size="sm" /> : null}
                         {t.currentOrderNumber != null && (
                           <Text style={styles.tableOrderNo}>#{String(t.currentOrderNumber).padStart(4, '0')}</Text>
                         )}

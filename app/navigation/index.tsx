@@ -11,6 +11,7 @@ import { shiftService } from '../services/shiftService';
 import { useSessionStore, profileFromBootstrap } from '../store/sessionStore';
 import { useProductStore } from '../store/productStore';
 import { Colors } from '../utils/colors';
+import BrandLoading from '../components/BrandLoading';
 
 import DeviceAuthenticateScreen from '../screens/DeviceAuthenticateScreen';
 import PinLoginScreen from '../screens/PinLoginScreen';
@@ -20,6 +21,8 @@ import PrinterSetupScreen from '../screens/PrinterSetupScreen';
 import ReceiptPreviewScreen from '../screens/ReceiptPreviewScreen';
 import ReceiptSettingsScreen from '../screens/ReceiptSettingsScreen';
 import BrandInfoScreen from '../screens/BrandInfoScreen';
+import KitchenDisplayScreen from '../screens/KitchenDisplayScreen';
+import CustomerDisplaySetupScreen from '../screens/CustomerDisplaySetupScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import PosSettingsScreen from '../screens/PosSettingsScreen';
 
@@ -32,6 +35,8 @@ export type RootStackParamList = {
   ReceiptPreview: undefined;
   ReceiptSettings: undefined;
   BrandInfo: undefined;
+  KitchenDisplay: undefined;
+  CustomerDisplay: undefined;
   Settings: undefined;
   PosSettings: undefined;
 };
@@ -119,11 +124,7 @@ export default function Navigation() {
   };
 
   if (bootstrapping) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+    return <BrandLoading />;
   }
 
   return (
@@ -140,6 +141,8 @@ export default function Navigation() {
         <Stack.Screen name="ReceiptPreview" component={ReceiptPreviewScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ReceiptSettings" component={ReceiptSettingsScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="BrandInfo" component={BrandInfoScreen} options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="KitchenDisplay" component={KitchenDisplayScreen} options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="CustomerDisplay" component={CustomerDisplaySetupScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="PosSettings" component={PosSettingsScreen} options={{ animation: 'slide_from_right' }} />
       </Stack.Navigator>

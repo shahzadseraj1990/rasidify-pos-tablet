@@ -18,6 +18,12 @@ class BarcodeScannerServiceImpl {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private lastCode = '';
   private lastCodeAt = 0;
+  // Raw native text already turned into a scan. clear() on the uncontrolled
+  // field is a native command Android drops as stale when it races the
+  // scanner's keystroke events (seen on EMUI), so the old code stays in the
+  // field and the next scan is appended to it ("…786628110…786"). Stripping
+  // this prefix makes the scan correct whether or not the clear landed.
+  private consumed = '';
   private clearNativeInput: (() => void) | null = null;
 
   // Provider calls this once so finalize() can clear the native field —
@@ -31,7 +37,13 @@ class BarcodeScannerServiceImpl {
   // string natively across the whole burst with no bridge round-trip per
   // keystroke — `text` here is always the complete current value.
   onTextChanged(text: string) {
+    if (this.consumed && text.startsWith(this.consumed)) {
+      text = text.slice(this.consumed.length);
+    } else {
+      this.consumed = ''; // the clear landed — native text is all new input
+    }
     this.buffer = text;
+    if (!text) return;
     this.resetIdleTimer();
   }
 
@@ -49,6 +61,7 @@ class BarcodeScannerServiceImpl {
 
   reset() {
     this.buffer = '';
+    this.consumed = '';
     this.clearIdleTimer();
     this.clearNativeInput?.();
   }
@@ -68,6 +81,7 @@ class BarcodeScannerServiceImpl {
   private finalize(source: ScanSource = 'usb') {
     this.clearIdleTimer();
     const code = this.buffer.trim();
+    this.consumed += this.buffer;
     this.buffer = '';
     this.clearNativeInput?.();
     if (code.length < MIN_BARCODE_LEN) return;

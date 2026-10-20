@@ -7,7 +7,7 @@ interface TableState {
   loading: boolean;
   loadedBranchID: number | null;
 
-  loadLayout: (branchId: number) => Promise<void>;
+  loadLayout: (branchId: number, silent?: boolean) => Promise<void>;
   patchTableStatus: (tableID: number, statusID: number, invoiceID?: number | null) => void;
   openTable: (tableID: number, invoiceID: number) => Promise<void>;
   releaseTable: (tableID: number) => Promise<void>;
@@ -20,8 +20,8 @@ export const useTableStore = create<TableState>((set, get) => ({
   loading: false,
   loadedBranchID: null,
 
-  loadLayout: async (branchId) => {
-    set({ loading: true });
+  loadLayout: async (branchId, silent = false) => {
+    if (!silent) set({ loading: true });
     try {
       const layout = await tableService.getLayout(branchId);
       set({ layout, loadedBranchID: branchId });

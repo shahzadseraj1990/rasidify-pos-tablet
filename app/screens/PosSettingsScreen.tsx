@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Modal, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import { usePosSettingsStore } from '../store/posSettingsStore';
+import { appAlert } from '../utils/appAlert';
 
 export default function PosSettingsScreen() {
   const navigation = useNavigation();
@@ -27,7 +28,7 @@ export default function PosSettingsScreen() {
   };
 
   const removeGroup = (id: string, name: string) => {
-    Alert.alert('Remove Group', `Remove "${name}" from favourites?`, [
+    appAlert('Remove Group', `Remove "${name}" from favourites?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => settings.removeGroup(id) },
     ]);

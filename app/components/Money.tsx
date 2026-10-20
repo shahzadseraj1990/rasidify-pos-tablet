@@ -19,8 +19,12 @@ export default function Money({ amount, currency = 'SAR', style, prefix = '', co
   const textColor = color ?? (flat?.color as string) ?? '#111';
 
   if (currency === 'SAR') {
+    // Keyed by the formatted amount: Android doesn't re-measure a Text that
+    // holds an inline view (the riyal SVG) when only the number changes, so
+    // the new number rendered clipped/invisible (e.g. a live total).
+    // Remounting on change forces a fresh layout.
     return (
-      <Text style={style}>
+      <Text key={`${prefix}${fmt(amount ?? 0)}`} style={style}>
         {prefix}
         <RiyalIcon size={fontSize * 0.85} color={textColor} /> {fmt(amount ?? 0)}
       </Text>

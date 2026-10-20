@@ -10,9 +10,21 @@ import { buildQrMatrix } from '../../utils/qrMatrix';
  * "Image Canvas" print mode; the raw ESC/POS print path renders the same
  * matrix separately via QrToEscPos.ts, from the same buildQrMatrix() source.
  */
-export default function ZatcaQrCode({ value, size = 120 }: { value: string; size?: number }) {
+export default function ZatcaQrCode({
+  value, size = 120, pxPerDp,
+}: {
+  value: string;
+  size?: number;
+  // Device pixels per layout unit at the final rendered scale. When given, the
+  // module size is snapped so every module covers a whole number of pixels —
+  // fractional modules get anti-aliased edges that print as uneven squares.
+  pxPerDp?: number;
+}) {
   const matrix = useMemo(() => buildQrMatrix(value), [value]);
-  const modulePx = size / matrix.size;
+  const modulePx = pxPerDp
+    ? Math.max(1, Math.floor((size * pxPerDp) / matrix.size)) / pxPerDp
+    : size / matrix.size;
+  size = modulePx * matrix.size;
 
   return (
     <View style={{ width: size, height: size, backgroundColor: '#fff' }}>

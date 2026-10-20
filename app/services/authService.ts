@@ -1,16 +1,20 @@
 import * as SecureStore from 'expo-secure-store';
 import { useSessionStore } from '../store/sessionStore';
 import { useProductStore } from '../store/productStore';
+import { useCartStore } from '../store/cartStore';
 import { productCatalogService } from './productCatalogService';
 import { PosUser } from '../types';
 
 const TOKEN_KEY = 'pos_token';
 const USER_KEY  = 'pos_user';
 
-// Session-scoped caches (bootstrap, menu, per-product option configs) must not
+// Session-scoped state (cart, bootstrap, menu, per-product option configs) must not
 // survive into the next staff member's / device's session — call on every
 // logout, Switch Device, and fresh passcode login.
 export function resetSessionCaches(): void {
+  // The cart belongs to the staff member who built it — never hand it to
+  // the next person who logs in on this device.
+  useCartStore.getState().clearCart();
   useSessionStore.getState().reset();
   useProductStore.getState().reset();
   productCatalogService.clear();

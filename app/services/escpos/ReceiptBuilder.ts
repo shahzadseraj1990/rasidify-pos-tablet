@@ -44,7 +44,8 @@ async function buildHeader(
   settings: ReceiptSettings,
   paperWidth: 58 | 80,
 ): Promise<void> {
-  const logoUrl = resolveLogoUri(settings.logoUrl || data.logoUrl);
+  // Store details come from the account profile (ReceiptData), never local settings.
+  const logoUrl = resolveLogoUri(data.logoUrl);
   let printedImage = false;
 
   if (settings.showLogoOnReceipt && logoUrl) {
@@ -59,16 +60,13 @@ async function buildHeader(
   // image, or when the image failed to fetch/decode.
   p.center();
   if (!printedImage) {
-    p.bold(true).size('dw').line(settings.companyName || data.companyName || '').size('normal').bold(false);
+    p.bold(true).size('dw').line(data.companyName || '').size('normal').bold(false);
   } else {
-    p.bold(true).line(settings.companyName || data.companyName || '').bold(false);
+    p.bold(true).line(data.companyName || '').bold(false);
   }
 
-  const address = settings.address || data.address;
-  if (address) p.center().line(address);
-
-  const vatNo = settings.vatNumber || data.vatNumber;
-  if (vatNo) p.center().line(`VAT# ${vatNo}`);
+  if (data.address) p.center().line(data.address);
+  if (data.vatNumber) p.center().line(`VAT# ${data.vatNumber}`);
 }
 
 // ── Shared: receipt footer ──────────────────────────────────────────────────
@@ -87,8 +85,7 @@ function buildFooter(
   p.bold(true).line(footer).bold(false);
 
   // Phone (simple template puts phone here)
-  const phone = settings.phone || data.phone;
-  if (showPhone && phone) p.center().line(`Phone No: ${phone}`);
+  if (showPhone && data.phone) p.center().line(`Phone No: ${data.phone}`);
 
   // Transaction number
   if (data.invoiceCode) p.center().line(`Transaction# ${data.invoiceCode}`);
@@ -224,8 +221,7 @@ export async function buildDetailedReceipt(
 
   // ── Header ── (same as simple but phone shown here, not footer)
   await buildHeader(p, data, settings, paperWidth);
-  const phone = settings.phone || data.phone;
-  if (phone) p.center().line(`Phone No: ${phone}`);
+  if (data.phone) p.center().line(`Phone No: ${data.phone}`);
   p.separator();
 
   // ── Heading ──

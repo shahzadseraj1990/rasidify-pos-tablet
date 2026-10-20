@@ -181,6 +181,33 @@ async function printUsb(
 // Sunmi built-in
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Leading ESC/GS style commands on a line (align/bold/size/font/underline):
+// ESC + command byte + one parameter byte, or ESC @ (init, no parameter).
+const LEADING_CMDS = /^(?:\x1b@|[\x1b\x1d][\s\S][\s\S])*/;
+const NON_BYTE = /[^\x00-\xff]/;
+
+/**
+ * Splits ESC/POS content into raw byte runs and Unicode text lines. Raw ESC/POS
+ * is single-byte, so Arabic (alternate item names, bilingual labels) sent that
+ * way prints as garbage; those lines go to the Sunmi text API instead, which
+ * renders Unicode with Arabic shaping. Alignment/bold set by the line's leading
+ * commands still applies — they're sent raw just before the text.
+ */
+function splitUnicodeLines(content: string): ({ raw: string } | { text: string })[] {
+  const out: ({ raw: string } | { text: string })[] = [];
+  let raw = '';
+  for (const line of content.match(/[^\n]*\n|[^\n]+$/g) ?? []) {
+    if (!NON_BYTE.test(line)) { raw += line; continue; }
+    const cmds = line.match(LEADING_CMDS)?.[0] ?? '';
+    raw += cmds;
+    if (raw) out.push({ raw });
+    raw = '';
+    out.push({ text: line.slice(cmds.length) });
+  }
+  if (raw) out.push({ raw });
+  return out;
+}
+
 async function printSunmi(content: string): Promise<PrintResult> {
   try {
     const SunmiPrinter = require('@mitsuharu/react-native-sunmi-printer-library');
@@ -188,8 +215,12 @@ async function printSunmi(content: string): Promise<PrintResult> {
     // `content` is raw ESC/POS bytes (including binary raster image data for
     // the logo) — printText() expects literal display text and mangles any
     // control/image bytes, same failure mode noted above for BLE/USB. Send it
-    // as raw bytes instead, exactly like printBluetooth/printUsb do.
-    await SunmiPrinter.sendRAWData(binaryStringToBase64(content));
+    // as raw bytes instead, exactly like printBluetooth/printUsb do — except
+    // lines with Arabic/other Unicode text, which only printText() can render.
+    for (const seg of splitUnicodeLines(content)) {
+      if ('raw' in seg) await SunmiPrinter.sendRAWData(binaryStringToBase64(seg.raw));
+      else await SunmiPrinter.printText(seg.text.endsWith('\n') ? seg.text : `${seg.text}\n`);
+    }
     return { success: true };
   } catch (e: any) {
     return {

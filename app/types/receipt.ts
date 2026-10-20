@@ -49,10 +49,9 @@ export interface ReceiptData {
   phone?:       string;
   currency?:    string;
 
-  // Real ZATCA Phase 2 QR (government-signed, government-verifiable), returned
-  // inline on the create/invoice response when this device has an active
-  // registration. Null/undefined when not registered, or signing failed/timed
-  // out server-side - the receipt just prints without a QR in that case.
+  // ZATCA QR: the signed Phase 2 QR from the create/sign response, or — when
+  // signing failed/timed out — a Phase 1 QR built locally for a tax-registered
+  // store (zatcaPhase1Qr). Null when neither applies; no QR is printed then.
   zatcaQrCode?: string | null;
 }
 
@@ -71,12 +70,8 @@ export interface ReceiptSettings {
   showPoweredBy:       boolean;
   bilingualLabels:     boolean;
   showAlternateName:   boolean;
-  // Company info (configured once in Receipt Settings screen)
-  companyName: string;
-  address:     string;
-  vatNumber:   string;
-  phone:       string;
-  logoUrl:     string;
+  // Store name/address/VAT/phone/logo are NOT settings: they come from the
+  // account profile on every session (sessionStore getStoreInfo).
 }
 
 export type PrinterType = 'network' | 'bluetooth' | 'usb' | 'sunmi';
@@ -125,11 +120,6 @@ export const RECEIPT_SETTINGS_DEFAULTS: ReceiptSettings = {
   showPoweredBy:       true,
   bilingualLabels:     false,
   showAlternateName:   true,
-  companyName:         '',
-  address:             '',
-  vatNumber:           '',
-  phone:               '',
-  logoUrl:             '',
 };
 
 export const PRINTER_SETTINGS_DEFAULTS: PrinterSettings = {

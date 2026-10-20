@@ -19,6 +19,11 @@ interface CartState {
   tableID: number | null;
   tableNo: string | null;
 
+  // What the kitchen already has for this order (see kitchenTicketService):
+  // lineKey → qty, and how many tickets (rounds) were sent. Empty for a new order.
+  kitchenSent: Record<string, number>;
+  kitchenRounds: number;
+
   addItem: (item: Omit<CartItem, 'total' | 'lineID'>) => void;
   updateQty: (lineID: string, qty: number) => void;
   removeItem: (lineID: string) => void;
@@ -28,6 +33,8 @@ interface CartState {
   setDiscount: (pct: number) => void;
   setCheckoutInvoice: (invoiceID: number, shiftOrderNo: number) => void;
   setTable: (tableID: number | null, tableNo: string | null) => void;
+  setKitchenSent: (sent: Record<string, number>, rounds: number) => void;
+  setItemNote: (lineID: string, note: string) => void;
   clearCart: () => void;
 
   // computed helpers
@@ -48,6 +55,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   checkoutShiftOrderNo: 0,
   tableID: null,
   tableNo: null,
+  kitchenSent: {},
+  kitchenRounds: 0,
 
   addItem: (item) => {
     // A configured line (modifiers/combo selections) never merges quantity
@@ -99,6 +108,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ checkoutInvoiceID: invoiceID, checkoutShiftOrderNo: shiftOrderNo }),
 
   setTable: (tableID, tableNo) => set({ tableID, tableNo }),
+  setKitchenSent: (sent, rounds) => set({ kitchenSent: sent, kitchenRounds: rounds }),
+  setItemNote: (lineID, note) =>
+    set(s => ({ items: s.items.map(i => (i.lineID === lineID ? { ...i, kitchenNote: note || undefined } : i)) })),
 
   clearCart: () => set({
     items: [],
@@ -110,6 +122,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     checkoutShiftOrderNo: 0,
     tableID: null,
     tableNo: null,
+    kitchenSent: {},
+    kitchenRounds: 0,
   }),
 
   subtotal: () => get().items.reduce((s, i) => s + i.total, 0),

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,22 +6,18 @@ import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
 import { useAuthStore } from '../store/authStore';
+import { useSessionStore, getStoreInfo } from '../store/sessionStore';
 
 export default function ReceiptSettingsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const s = useReceiptSettingsStore();
   const user = useAuthStore(state => state.user);
+  // Store info is the live account profile (re-read when the session
+  // bootstrap changes) — read-only here, edited on the dashboard.
+  const bootstrap = useSessionStore(state => state.bootstrap);
+  const store = useMemo(() => getStoreInfo(user), [user, bootstrap]);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    const patch: Record<string, string> = {};
-    if (!s.companyName && user?.companyName) patch.companyName = user.companyName;
-    if (!s.address && user?.companyAddress) patch.address = user.companyAddress;
-    if (!s.phone && user?.companyPhone) patch.phone = user.companyPhone;
-    if (Object.keys(patch).length > 0) s.update(patch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function save() {
     setSaved(true);
@@ -79,10 +75,11 @@ export default function ReceiptSettingsScreen() {
           <View style={styles.col}>
             <Label>Store Information</Label>
             <View style={[styles.card, styles.cardPad]}>
-              <InputField label="Store Name" value={s.companyName} onChangeText={v => s.update({ companyName: v })} placeholder="Your business name" />
-              <InputField label="Address" value={s.address} onChangeText={v => s.update({ address: v })} placeholder="Street, City, Country" />
-              <InputField label="VAT Number" value={s.vatNumber} onChangeText={v => s.update({ vatNumber: v })} placeholder="3XXXXXXXXXX" keyboardType="numbers-and-punctuation" />
-              <InputField label="Phone Number" value={s.phone} onChangeText={v => s.update({ phone: v })} placeholder="+966 50 000 0000" keyboardType="phone-pad" />
+              <ReadOnlyField label="Store Name" value={store.companyName} />
+              <ReadOnlyField label="Address" value={store.address} />
+              <ReadOnlyField label="VAT Number" value={store.vatNumber} />
+              <ReadOnlyField label="Phone Number" value={store.phone} />
+              <Text style={styles.inputHint}>From your Rasidify account. Change it on the dashboard; the receipt picks it up on the next login.</Text>
             </View>
 
             <Label>Receipt Footer</Label>
@@ -130,6 +127,15 @@ function TemplateRow({ label, sub, active, onPress }: { label: string; sub: stri
         <Text style={styles.templateSub}>{sub}</Text>
       </View>
     </TouchableOpacity>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ gap: 5 }}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <Text style={[styles.input, !value && { color: Colors.textMuted }]}>{value || 'Not set'}</Text>
+    </View>
   );
 }
 
@@ -185,5 +191,6 @@ const styles = StyleSheet.create({
   templateSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
   inputLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  inputHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
   input: { backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.text },
 });

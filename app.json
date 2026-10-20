@@ -14,10 +14,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#2815C2"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.rasidify.cashier",
@@ -36,12 +36,20 @@
       "expo-secure-store",
       "expo-status-bar",
       [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/splash-logo.png",
-          "imageWidth": 320,
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#2815C2"
         }
       ]
     ]

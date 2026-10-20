@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import Money from '../components/Money';
 import { useShiftStore } from '../store/shiftStore';
 import { useAuthStore } from '../store/authStore';
 import { posApi } from '../services/api';
+import { appAlert } from '../utils/appAlert';
 
 interface ShiftSummary {
   totalSales: number;
@@ -64,7 +65,7 @@ export default function ReportsScreen() {
       setPayments(d?.payments ?? []);
       setOrderTypes(d?.orderTypes ?? []);
     } catch {
-      if (!__DEV__) Alert.alert('Error', 'Could not load shift summary.');
+      if (!__DEV__) appAlert('Error', 'Could not load shift summary.');
     } finally {
       setLoading(false);
       setRefreshing(false);

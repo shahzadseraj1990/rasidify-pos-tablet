@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
   ActivityIndicator, ScrollView, RefreshControl,
@@ -6,13 +6,49 @@ import {
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
 import Money from '../components/Money';
+import KitchenBadge from '../components/KitchenBadge';
+import KitchenTicketsPanel from '../components/KitchenTicketsPanel';
 import { useShiftStore } from '../store/shiftStore';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { posApi } from '../services/api';
 import { cartItemsFromInvoiceLines, customerFromInvoice } from '../utils/invoiceLines';
-import { useSessionStore } from '../store/sessionStore';
+import { loadKitchenStateIntoCart } from '../services/kitchenTicketService';
+import { useSessionStore, getStoreInfo, storeFields } from '../store/sessionStore';
+import { zatcaPhase1Qr } from '../utils/zatcaPhase1Qr';
 import { PosOrder } from '../types';
+import { ViewShotRef } from 'react-native-view-shot';
+import { ReceiptPaper, ReceiptPrintCapture } from '../components/receipt/ReceiptPaper';
+import { ReceiptData } from '../types/receipt';
+import { buildSelectionTree } from '../utils/selectionTree';
+import { orderService } from '../services/orderService';
+import { printReceiptNow } from '../services/receiptPrintFlow';
+import { usePrinterStore } from '../store/printerStore';
+import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
+import { useToastStore } from '../store/toastStore';
+import { appAlert } from '../utils/appAlert';
+
+// Modifier / combo lines of a saved order line: the structured selections
+// when the API returns them (nested picks indented), else the saved
+// description text ("Size: Large +2, Coke").
+function lineModifiers(li: any): { label: string; extra: number; child?: boolean }[] {
+  const sels = (li.selections ?? li.Selections ?? []).map((x: any) => ({
+    selectionType: x.selectionType ?? x.SelectionType,
+    groupName: x.groupName ?? x.GroupName,
+    itemName: x.itemName ?? x.ItemName ?? '',
+    additionalPrice: Number(x.additionalPrice ?? x.AdditionalPrice ?? 0),
+  }));
+  if (sels.length > 0) {
+    return buildSelectionTree(sels).flatMap(n => [
+      { label: n.label, extra: n.extra },
+      ...n.children.map(c => ({ label: c.label, extra: c.extra, child: true })),
+    ]);
+  }
+  const desc: string = li.productDescription ?? li.ProductDescription ?? '';
+  return desc && desc !== 'POS Order'
+    ? desc.split(',').map(t => t.trim()).filter(Boolean).map(label => ({ label, extra: 0 }))
+    : [];
+}
 
 const PAGE_SIZE = 30;
 
@@ -95,6 +131,15 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
   const [selected, setSelected] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Reprint: same print path as checkout (hidden ReceiptPaper for Image
+  // Canvas mode), headed DUPLICATE BILL / UNPAID BILL.
+  const printer = usePrinterStore();
+  const receiptSettings = useReceiptSettingsStore();
+  const toast = useToastStore(s => s.show);
+  const printViewShotRef = useRef<ViewShotRef>(null);
+  const [printCapture, setPrintCapture] = useState<ReceiptData | null>(null);
+  const [reprinting, setReprinting] = useState(false);
+
   const shiftID = shift?.shiftID ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -173,6 +218,66 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
     finally { setDetailLoading(false); }
   }
 
+  async function reprintOrder(order: OrderDetail) {
+    if (reprinting) return;
+    if (!printer.isConfigured) {
+      appAlert('Printer Not Configured', 'Set up a printer first in Menu → Printer Settings.');
+      return;
+    }
+    setReprinting(true);
+    try {
+      const paid = order.statusID === 105;
+      // A paid order carries the same ZATCA QR as the original receipt;
+      // signing again is idempotent (it reuses the stored signature).
+      // Unpaid orders are never signed from here.
+      const signed = paid ? await orderService.signForReceipt(order.invoiceID) : null;
+      const store = getStoreInfo(user);
+      // Same Phase 1 fallback as checkout when signing returns no QR.
+      const qr = signed ?? (paid && store.isTaxRegistered && store.vatNumber
+        ? zatcaPhase1Qr(store.companyName, store.vatNumber, parseOrderDate(order.transactionDate),
+            Number(order.totalAmount ?? 0), Number(order.vatAmount ?? 0))
+        : null);
+      const items = (order.line_items ?? []).map((li: any) => ({
+        name: li.productName ?? li.ProductName ?? li.name ?? '',
+        alternateName: li.alternateName ?? li.AlternateName,
+        qty: Number(li.qty ?? li.Qty ?? li.quantity ?? 1),
+        price: Number(li.price ?? li.Price ?? li.unitPrice ?? 0),
+        selections: lineModifiers(li).map(m => m.label).join(', ') || undefined,
+      }));
+      const subtotal = order.subtotal ?? items.reduce((sum, i) => sum + i.qty * i.price, 0);
+      const data: ReceiptData = {
+        orderNumber: orderNum(order),
+        invoiceCode: order.transactionNumber,
+        heading: paid ? 'DUPLICATE BILL' : 'UNPAID BILL',
+        items,
+        subtotal,
+        vat: order.vatAmount ?? 0,
+        discount: order.discount ?? 0,
+        total: order.totalAmount,
+        payments: (order.line_payments ?? []).map((pm: any) => ({ method: pm.paymentMethod, amount: Number(pm.paymentAmount ?? 0) })),
+        change: 0,
+        customerName: custName(order) === 'Walk-in Customer' ? undefined : custName(order),
+        orderType: order.orderType ?? undefined,
+        tableNo: order.tableNo ?? undefined,
+        orderNote: order.customerNote,
+        time: parseOrderDate(order.transactionDate),
+        cashierName: (order as any).staffName ?? user?.name,
+        currency,
+        ...storeFields(store),
+        zatcaQrCode: qr,
+      };
+      setPrintCapture(data);
+      if (receiptSettings.printMode === 'image') {
+        await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      }
+      const result = await printReceiptNow(data, receiptSettings, printer, printViewShotRef);
+      if (result.success) toast('Receipt reprinted', 'success', `Order ${orderNum(order)}`);
+      else appAlert('Print Failed', result.error);
+    } finally {
+      setReprinting(false);
+    }
+  }
+
   function resumeHeldOrder(order: OrderDetail) {
     const items = order.line_items ?? [];
     cart.clearCart();
@@ -185,6 +290,7 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
     cart.setCustomer(customerFromInvoice(order));
     if (order.tableNo) cart.setTable(order.tableID ?? null, order.tableNo);
     cart.setCheckoutInvoice(order.invoiceID, order.shiftOrderNo ?? 0);
+    loadKitchenStateIntoCart(order.invoiceID);
     setSelected(null);
     onResumeOrder();
   }
@@ -256,6 +362,7 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
                   {item.paymentMethodTitle ? (
                     <View style={styles.methodChip}><Text style={styles.methodChipText}>{item.paymentMethodTitle}</Text></View>
                   ) : null}
+                  <KitchenBadge invoiceId={item.invoiceID} />
                   <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
                     <Text style={[styles.statusBadgeText, { color: sc.text }]}>{STATUS_LABELS[item.statusID] ?? 'Unknown'}</Text>
                   </View>
@@ -293,8 +400,11 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
             </View>
 
             <View style={styles.statusStrip}>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor(selected.statusID).bg }]}>
-                <Text style={[styles.statusBadgeText, { color: statusColor(selected.statusID).text }]}>{STATUS_LABELS[selected.statusID] ?? 'Unknown'}</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={[styles.statusBadge, { backgroundColor: statusColor(selected.statusID).bg }]}>
+                  <Text style={[styles.statusBadgeText, { color: statusColor(selected.statusID).text }]}>{STATUS_LABELS[selected.statusID] ?? 'Unknown'}</Text>
+                </View>
+                <KitchenBadge invoiceId={selected.invoiceID} />
               </View>
               <Money amount={selected.totalAmount} currency={currency} style={styles.stripTotal} />
             </View>
@@ -305,6 +415,8 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
               {selected.tableNo ? <MetaRow label="Table" value={selected.tableNo} /> : null}
             </View>
 
+            <KitchenTicketsPanel invoiceId={selected.invoiceID} />
+
             <Text style={styles.sectionTitle}>Items</Text>
             {detailLoading ? (
               <ActivityIndicator color={Colors.primary} style={{ marginVertical: 12 }} />
@@ -313,6 +425,14 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
                 <View key={idx} style={styles.lineItem}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.liName}>{li.productName ?? li.description ?? li.name ?? ''}</Text>
+                    {lineModifiers(li).map((m, mi) => (
+                      <Text key={mi} style={[styles.liMod, m.child && styles.liModChild]}>
+                        {m.child ? '↳ ' : '+ '}{m.label}{m.extra > 0 ? `  (+${m.extra.toFixed(2)})` : ''}
+                      </Text>
+                    ))}
+                    {!!(li.kitchenNote ?? li.KitchenNote) && (
+                      <Text style={styles.liNote}>Note: {li.kitchenNote ?? li.KitchenNote}</Text>
+                    )}
                     <Text style={styles.liMeta}>
                       {li.qty ?? li.quantity ?? 1} × <Money amount={li.price ?? li.unitPrice ?? 0} currency={currency} style={styles.liMeta} />
                     </Text>
@@ -343,15 +463,34 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
               </View>
             )}
 
-            {(selected.statusID === 20 || selected.statusID === 106) && (
-              <TouchableOpacity style={styles.resumeBtn} onPress={() => resumeHeldOrder(selected)}>
-                <Icon name="play" size={13} color="#fff" />
-                <Text style={styles.resumeBtnText}>Resume Order</Text>
+            <View style={styles.detailActions}>
+              <TouchableOpacity
+                style={[styles.reprintBtn, (detailLoading || reprinting) && { opacity: 0.5 }]}
+                onPress={() => reprintOrder(selected)}
+                disabled={detailLoading || reprinting}
+              >
+                {reprinting
+                  ? <ActivityIndicator size="small" color={Colors.text} />
+                  : <><Icon name="print" size={13} color={Colors.text} /><Text style={styles.reprintBtnText}>Reprint</Text></>}
               </TouchableOpacity>
-            )}
+              {(selected.statusID === 20 || selected.statusID === 106) && (
+                <TouchableOpacity style={[styles.resumeBtn, { flex: 1, marginTop: 0 }]} onPress={() => resumeHeldOrder(selected)}>
+                  <Icon name="play" size={13} color="#fff" />
+                  <Text style={styles.resumeBtnText}>Resume Order</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </ScrollView>
         )}
       </View>
+
+      {/* Off-screen receipt for Image Canvas print mode (see SellScreen). */}
+      {printCapture && (
+        <ReceiptPrintCapture
+          ref={printViewShotRef}
+          receipt={printCapture} settings={receiptSettings} paperWidth={printer.paperWidth}
+        />
+      )}
     </View>
   );
 }
@@ -450,4 +589,14 @@ const styles = StyleSheet.create({
 
   resumeBtn: { flexDirection: 'row', gap: 8, marginTop: 20, backgroundColor: Colors.primary, borderRadius: 12, height: 48, alignItems: 'center', justifyContent: 'center' },
   resumeBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  detailActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  reprintBtn: {
+    flexDirection: 'row', gap: 8, paddingHorizontal: 22, height: 48, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
+    alignItems: 'center', justifyContent: 'center', minWidth: 130,
+  },
+  reprintBtnText: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  liMod: { fontSize: 12, color: Colors.textLight, marginTop: 1 },
+  liModChild: { marginLeft: 14, color: Colors.textMuted },
+  liNote: { fontSize: 12, fontWeight: '700', color: '#B45309', marginTop: 2 },
 });

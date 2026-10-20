@@ -1,0 +1,1083 @@
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :app
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-max-sdk-override-plugin[0m'
+  [expo-max-sdk-override-plugin] This plugin will find all permissions declared with `android:maxSdkVersion`. If there exists a declaration with the `android:maxSdkVersion` annotation and another one without, the plugin will remove the annotation from the final merged manifest. In order to see a log with the changes run a clean build of the app.
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m36[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-log-box[0m (57.0.4)
+  - [32mexpo-constants[0m (57.0.18)
+  - [32mexpo-modules-core[0m (57.0.18)
+  - [33m[📦][0m [32mexpo-dom-webview[0m (57.0.1)
+  - [33m[📦][0m [32mexpo-asset[0m (57.0.17)
+  - [33m[📦][0m [32mexpo-audio[0m (57.0.5)
+  - [33m[📦][0m [32mexpo-camera[0m (57.0.5)
+  - [33m[📦][0m [32mexpo-file-system[0m (57.0.7)
+  - [33m[📦][0m [32mexpo-font[0m (57.0.4)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-network[0m (57.0.2)
+  - [33m[📦][0m [32mexpo-secure-store[0m (57.0.4)
+  - [33m[📦][0m [32mexpo-splash-screen[0m (57.0.9)
+  - [33m[📦][0m [32mexpo-status-bar[0m (57.0.1)
+
+WARNING: The specified Android SDK Build Tools version (32.0.0) is ignored, as it is below the minimum supported version (35.0.0) for Android Gradle Plugin 8.12.0.
+Android SDK Build Tools 35.0.0 will be used.
+To suppress this warning, remove "buildToolsVersion '32.0.0'" from your build.gradle file, as each version of the Android Gradle Plugin now has a default version of the build tools.
+
+> Task :expo-modules-core:preBuild UP-TO-DATE
+> Task :expo-log-box:preBuild UP-TO-DATE
+> Task :react-native-ping:preBuild UP-TO-DATE
+> Task :react-native-tcp-socket:preBuild UP-TO-DATE
+> Task :react-native-thermal-receipt-printer-image-qr:preBuild UP-TO-DATE
+> Task :expo-log-box:preReleaseBuild UP-TO-DATE
+> Task :expo-modules-core:preReleaseBuild UP-TO-DATE
+> Task :expo:generatePackagesList
+> Task :expo:preBuild
+> Task :expo:preReleaseBuild
+> Task :expo:mergeReleaseJniLibFolders
+> Task :app:generateAutolinkingNewArchitectureFiles
+> Task :expo:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:generateAutolinkingPackageList
+> Task :app:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :app:generateCodegenArtifactsFromSchema SKIPPED
+> Task :app:generateReactNativeEntryPoint
+> Task :react-native-ping:preReleaseBuild UP-TO-DATE
+> Task :expo:copyReleaseJniLibsProjectOnly
+> Task :react-native-tcp-socket:preReleaseBuild UP-TO-DATE
+> Task :react-native-ping:mergeReleaseJniLibFolders
+> Task :react-native-tcp-socket:mergeReleaseJniLibFolders
+> Task :react-native-ping:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-tcp-socket:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-ping:copyReleaseJniLibsProjectOnly
+> Task :react-native-thermal-receipt-printer-image-qr:preReleaseBuild UP-TO-DATE
+> Task :react-native-tcp-socket:copyReleaseJniLibsProjectOnly
+> Task :expo:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseJniLibFolders
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-thermal-receipt-printer-image-qr:copyReleaseJniLibsProjectOnly
+> Task :expo:generateReleaseBuildConfig
+> Task :react-native-ping:generateReleaseBuildConfig
+> Task :expo:generateReleaseResValues
+> Task :react-native-ping:generateReleaseResValues
+> Task :expo-modules-core:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo:generateReleaseResources
+> Task :react-native-ping:generateReleaseResources
+> Task :expo-log-box:mergeReleaseJniLibFolders
+> Task :expo-log-box:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-log-box:copyReleaseJniLibsProjectOnly
+> Task :expo-log-box:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-log-box:generateReleaseBuildConfig
+> Task :react-native-ping:packageReleaseResources
+> Task :expo:packageReleaseResources
+> Task :expo-log-box:generateReleaseResValues
+> Task :expo-log-box:generateReleaseResources
+> Task :expo:parseReleaseLocalResources
+> Task :react-native-ping:parseReleaseLocalResources
+> Task :expo:generateReleaseRFile
+> Task :expo:javaPreCompileRelease
+> Task :react-native-tcp-socket:generateReleaseBuildConfig
+> Task :react-native-tcp-socket:generateReleaseResValues
+> Task :react-native-tcp-socket:generateReleaseResources
+> Task :react-native-tcp-socket:packageReleaseResources
+> Task :react-native-tcp-socket:parseReleaseLocalResources
+> Task :react-native-tcp-socket:generateReleaseRFile
+> Task :react-native-tcp-socket:javaPreCompileRelease
+> Task :react-native-ping:javaPreCompileRelease
+> Task :react-native-ping:generateReleaseRFile
+> Task :expo-log-box:packageReleaseResources
+> Task :expo-log-box:parseReleaseLocalResources
+> Task :expo-log-box:generateReleaseRFile
+> Task :expo-log-box:javaPreCompileRelease
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseBuildConfig
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseResValues
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseResources
+> Task :react-native-thermal-receipt-printer-image-qr:packageReleaseResources
+
+> Task :expo-constants:createExpoConfig
+The NODE_ENV environment variable is required but was not specified. Ensure the project is bundled with Expo CLI or NODE_ENV is set. Using only .env.local and .env
+
+> Task :expo-constants:preBuild
+> Task :expo-constants:preReleaseBuild
+> Task :expo-constants:mergeReleaseJniLibFolders
+> Task :expo-constants:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-constants:copyReleaseJniLibsProjectOnly
+> Task :expo-constants:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-constants:generateReleaseBuildConfig
+> Task :expo-constants:generateReleaseResValues
+> Task :expo-constants:generateReleaseResources
+> Task :expo-constants:packageReleaseResources
+> Task :react-native-thermal-receipt-printer-image-qr:parseReleaseLocalResources
+> Task :expo-constants:parseReleaseLocalResources
+> Task :expo-constants:javaPreCompileRelease
+> Task :expo-constants:generateReleaseRFile
+> Task :react-native-thermal-receipt-printer-image-qr:javaPreCompileRelease
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseRFile
+> Task :app:buildKotlinToolingMetadata
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo:writeReleaseAarMetadata
+> Task :expo-constants:writeReleaseAarMetadata
+> Task :expo-log-box:writeReleaseAarMetadata
+
+> Task :mitsuharu_react-native-sunmi-printer-library:generateCodegenSchemaFromJavaScript
+No modules to process in combine-js-to-schema-cli. If this is unexpected, please check if you set up your NativeComponent correctly. See combine-js-to-schema.js for how codegen finds modules.
+
+> Task :react-native-async-storage_async-storage:generateCodegenSchemaFromJavaScript
+> Task :react-native-community_netinfo:generateCodegenSchemaFromJavaScript
+> Task :react-native-safe-area-context:generateCodegenSchemaFromJavaScript
+> Task :react-native-view-shot:generateCodegenSchemaFromJavaScript
+> Task :react-native-screens:generateCodegenSchemaFromJavaScript
+> Task :react-native-svg:generateCodegenSchemaFromJavaScript
+> Task :react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema
+> Task :react-native-async-storage_async-storage:preBuild
+> Task :react-native-async-storage_async-storage:preReleaseBuild
+> Task :react-native-safe-area-context:generateCodegenArtifactsFromSchema
+> Task :react-native-safe-area-context:preBuild
+> Task :react-native-safe-area-context:preReleaseBuild
+> Task :mitsuharu_react-native-sunmi-printer-library:generateCodegenArtifactsFromSchema
+> Task :mitsuharu_react-native-sunmi-printer-library:preBuild
+> Task :mitsuharu_react-native-sunmi-printer-library:preReleaseBuild
+> Task :react-native-community_netinfo:generateCodegenArtifactsFromSchema
+> Task :react-native-community_netinfo:preBuild
+> Task :react-native-community_netinfo:preReleaseBuild
+> Task :react-native-safe-area-context:mergeReleaseJniLibFolders
+> Task :react-native-async-storage_async-storage:mergeReleaseJniLibFolders
+> Task :react-native-community_netinfo:mergeReleaseJniLibFolders
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseJniLibFolders
+> Task :react-native-safe-area-context:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-async-storage_async-storage:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-community_netinfo:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-view-shot:generateCodegenArtifactsFromSchema
+> Task :react-native-view-shot:preBuild
+> Task :react-native-view-shot:preReleaseBuild
+> Task :react-native-async-storage_async-storage:copyReleaseJniLibsProjectOnly
+> Task :react-native-safe-area-context:copyReleaseJniLibsProjectOnly
+> Task :react-native-safe-area-context:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-community_netinfo:copyReleaseJniLibsProjectOnly
+> Task :mitsuharu_react-native-sunmi-printer-library:copyReleaseJniLibsProjectOnly
+> Task :mitsuharu_react-native-sunmi-printer-library:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-view-shot:mergeReleaseJniLibFolders
+> Task :react-native-safe-area-context:generateReleaseBuildConfig
+> Task :react-native-async-storage_async-storage:generateReleaseBuildConfig
+> Task :react-native-view-shot:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-community_netinfo:generateReleaseBuildConfig
+> Task :react-native-safe-area-context:generateReleaseResValues
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseBuildConfig
+> Task :react-native-async-storage_async-storage:generateReleaseResValues
+> Task :react-native-view-shot:copyReleaseJniLibsProjectOnly
+> Task :react-native-community_netinfo:generateReleaseResValues
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseResValues
+> Task :react-native-view-shot:generateReleaseBuildConfig
+> Task :react-native-view-shot:generateReleaseResValues
+> Task :react-native-safe-area-context:generateReleaseResources
+> Task :react-native-async-storage_async-storage:generateReleaseResources
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseResources
+> Task :react-native-community_netinfo:generateReleaseResources
+> Task :react-native-view-shot:generateReleaseResources
+> Task :react-native-community_netinfo:packageReleaseResources
+> Task :react-native-async-storage_async-storage:packageReleaseResources
+> Task :mitsuharu_react-native-sunmi-printer-library:packageReleaseResources
+> Task :react-native-view-shot:packageReleaseResources
+> Task :react-native-safe-area-context:packageReleaseResources
+> Task :react-native-async-storage_async-storage:parseReleaseLocalResources
+> Task :react-native-safe-area-context:parseReleaseLocalResources
+> Task :react-native-community_netinfo:parseReleaseLocalResources
+> Task :react-native-view-shot:parseReleaseLocalResources
+> Task :mitsuharu_react-native-sunmi-printer-library:parseReleaseLocalResources
+> Task :mitsuharu_react-native-sunmi-printer-library:javaPreCompileRelease
+> Task :react-native-safe-area-context:generateReleaseRFile
+> Task :react-native-view-shot:generateReleaseRFile
+> Task :react-native-view-shot:javaPreCompileRelease
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseRFile
+> Task :react-native-async-storage_async-storage:generateReleaseRFile
+> Task :react-native-community_netinfo:generateReleaseRFile
+> Task :react-native-community_netinfo:javaPreCompileRelease
+> Task :react-native-async-storage_async-storage:javaPreCompileRelease
+> Task :react-native-screens:generateCodegenArtifactsFromSchema
+> Task :react-native-screens:preBuild
+> Task :react-native-screens:preReleaseBuild
+> Task :react-native-svg:generateCodegenArtifactsFromSchema
+> Task :react-native-svg:preBuild
+> Task :react-native-svg:preReleaseBuild
+> Task :react-native-svg:mergeReleaseJniLibFolders
+> Task :react-native-svg:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-svg:copyReleaseJniLibsProjectOnly
+> Task :react-native-svg:generateReleaseBuildConfig
+> Task :react-native-screens:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-svg:generateReleaseResValues
+> Task :react-native-svg:generateReleaseResources
+> Task :react-native-svg:packageReleaseResources
+> Task :react-native-svg:parseReleaseLocalResources
+> Task :react-native-svg:generateReleaseRFile
+> Task :react-native-svg:javaPreCompileRelease
+
+> Task :expo-modules-core:buildCMakeRelWithDebInfo[arm64-v8a]
+C/C++: Hard link from 'C:\Users\mshah\.gradle\caches\9.3.1\transforms\a2ad667c1455f942621506f7853c7d9d\workspace\transformed\react-android-0.86.3-release\prefab\modules\reactnative\libs\android.arm64-v8a\libreactnative.so' to 'D:\Rasidify\Tablet_POS_APP\node_modules\expo-modules-core\android\build\intermediates\cxx\RelWithDebInfo\464d3p4x\obj\arm64-v8a\libreactnative.so' failed. Doing a slower copy instead.
+C/C++: Hard link from 'C:\Users\mshah\.gradle\caches\9.3.1\transforms\a2ad667c1455f942621506f7853c7d9d\workspace\transformed\react-android-0.86.3-release\prefab\modules\reactnative\libs\android.arm64-v8a\libreactnative.so' to 'D:\Rasidify\Tablet_POS_APP\node_modules\expo-modules-core\android\build\intermediates\cxx\RelWithDebInfo\464d3p4x\obj\arm64-v8a\libreactnative.so' failed. Doing a slower copy instead.
+
+> Task :react-native-ping:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :react-native-safe-area-context:javaPreCompileRelease
+
+> Task :react-native-community_netinfo:compileReleaseJavaWithJavac
+D:\Rasidify\Tablet_POS_APP\node_modules\@react-native-community\netinfo\android\src\newarch\com\reactnativecommunity\netinfo\NetInfoModule.java:43: warning: [removal] onCatalystInstanceDestroy() in NativeModule has been deprecated and marked for removal
+    public void onCatalystInstanceDestroy() {
+                ^
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+1 warning
+
+> Task :react-native-tcp-socket:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :react-native-ping:bundleLibRuntimeToDirRelease
+
+> Task :react-native-thermal-receipt-printer-image-qr:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :react-native-screens:buildCMakeRelWithDebInfo[arm64-v8a]
+C/C++: Hard link from 'C:\Users\mshah\.gradle\caches\9.3.1\transforms\a2ad667c1455f942621506f7853c7d9d\workspace\transformed\react-android-0.86.3-release\prefab\modules\reactnative\libs\android.arm64-v8a\libreactnative.so' to 'D:\Rasidify\Tablet_POS_APP\node_modules\react-native-screens\android\build\intermediates\cxx\RelWithDebInfo\84r5a6vd\obj\arm64-v8a\libreactnative.so' failed. Doing a slower copy instead.
+C/C++: Hard link from 'C:\Users\mshah\.gradle\caches\9.3.1\transforms\a2ad667c1455f942621506f7853c7d9d\workspace\transformed\react-android-0.86.3-release\prefab\modules\reactnative\libs\android.arm64-v8a\libreactnative.so' to 'D:\Rasidify\Tablet_POS_APP\node_modules\react-native-screens\android\build\intermediates\cxx\RelWithDebInfo\84r5a6vd\obj\arm64-v8a\libreactnative.so' failed. Doing a slower copy instead.
+
+> Task :react-native-async-storage_async-storage:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: D:\Rasidify\Tablet_POS_APP\node_modules\@react-native-async-storage\async-storage\android\src\javaPackage\java\com\reactnativecommunity\asyncstorage\AsyncStoragePackage.java uses unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :react-native-view-shot:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :expo-modules-core:mergeReleaseJniLibFolders
+> Task :react-native-screens:mergeReleaseJniLibFolders
+
+> Task :app:createBundleReleaseJsAndAssets
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+
+> Task :react-native-screens:mergeReleaseNativeLibs
+> Task :expo-modules-core:mergeReleaseNativeLibs
+> Task :react-native-screens:copyReleaseJniLibsProjectOnly
+> Task :react-native-screens:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-screens:generateReleaseBuildConfig
+> Task :react-native-screens:generateReleaseResValues
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToDirRelease
+> Task :expo-modules-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-modules-core:generateReleaseBuildConfig
+> Task :expo-modules-core:generateReleaseResValues
+> Task :expo-modules-core:generateReleaseResources
+> Task :react-native-view-shot:bundleLibRuntimeToDirRelease
+> Task :react-native-community_netinfo:bundleLibRuntimeToDirRelease
+> Task :react-native-tcp-socket:bundleLibRuntimeToDirRelease
+> Task :expo-modules-core:packageReleaseResources
+> Task :expo-modules-core:parseReleaseLocalResources
+> Task :expo-modules-core:copyReleaseJniLibsProjectOnly
+> Task :react-native-screens:generateReleaseResources
+> Task :expo-modules-core:generateReleaseRFile
+> Task :react-native-thermal-receipt-printer-image-qr:bundleLibRuntimeToDirRelease
+> Task :react-native-screens:packageReleaseResources
+> Task :react-native-screens:parseReleaseLocalResources
+> Task :react-native-screens:generateReleaseRFile
+> Task :mitsuharu_react-native-sunmi-printer-library:writeReleaseAarMetadata
+> Task :react-native-ping:writeReleaseAarMetadata
+> Task :react-native-async-storage_async-storage:writeReleaseAarMetadata
+> Task :react-native-community_netinfo:writeReleaseAarMetadata
+> Task :react-native-tcp-socket:writeReleaseAarMetadata
+> Task :react-native-view-shot:writeReleaseAarMetadata
+> Task :react-native-safe-area-context:writeReleaseAarMetadata
+> Task :react-native-thermal-receipt-printer-image-qr:writeReleaseAarMetadata
+> Task :expo:extractDeepLinksRelease
+> Task :expo-constants:extractDeepLinksRelease
+> Task :mitsuharu_react-native-sunmi-printer-library:extractDeepLinksRelease
+> Task :expo-log-box:extractDeepLinksRelease
+> Task :react-native-async-storage_async-storage:extractDeepLinksRelease
+> Task :expo:processReleaseManifest
+> Task :expo-log-box:processReleaseManifest
+> Task :expo-constants:processReleaseManifest
+
+> Task :react-native-async-storage_async-storage:processReleaseManifest
+package="com.reactnativecommunity.asyncstorage" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\@react-native-async-storage\async-storage\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.reactnativecommunity.asyncstorage" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\@react-native-async-storage\async-storage\android\src\main\AndroidManifest.xml.
+
+> Task :mitsuharu_react-native-sunmi-printer-library:processReleaseManifest
+> Task :react-native-ping:extractDeepLinksRelease
+> Task :react-native-community_netinfo:extractDeepLinksRelease
+> Task :react-native-safe-area-context:extractDeepLinksRelease
+> Task :react-native-tcp-socket:extractDeepLinksRelease
+> Task :react-native-thermal-receipt-printer-image-qr:extractDeepLinksRelease
+
+> Task :react-native-safe-area-context:processReleaseManifest
+package="com.th3rdwave.safeareacontext" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-safe-area-context\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.th3rdwave.safeareacontext" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-safe-area-context\android\src\main\AndroidManifest.xml.
+
+> Task :react-native-ping:processReleaseManifest
+package="com.reactlibrary.LHPing" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-ping\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.reactlibrary.LHPing" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-ping\android\src\main\AndroidManifest.xml.
+
+> Task :react-native-view-shot:extractDeepLinksRelease
+
+> Task :react-native-community_netinfo:processReleaseManifest
+package="com.reactnativecommunity.netinfo" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\@react-native-community\netinfo\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.reactnativecommunity.netinfo" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\@react-native-community\netinfo\android\src\main\AndroidManifest.xml.
+
+> Task :react-native-tcp-socket:processReleaseManifest
+package="com.asterinet.react.tcpsocket" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-tcp-socket\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.asterinet.react.tcpsocket" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-tcp-socket\android\src\main\AndroidManifest.xml.
+
+> Task :react-native-view-shot:processReleaseManifest
+package="fr.greweb.reactnativeviewshot" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-view-shot\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="fr.greweb.reactnativeviewshot" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-view-shot\android\src\main\AndroidManifest.xml.
+
+> Task :react-native-thermal-receipt-printer-image-qr:processReleaseManifest
+package="com.pinmi.react.printer" found in source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-thermal-receipt-printer-image-qr\android\src\main\AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.pinmi.react.printer" from the source AndroidManifest.xml: D:\Rasidify\Tablet_POS_APP\node_modules\react-native-thermal-receipt-printer-image-qr\android\src\main\AndroidManifest.xml.
+
+> Task :expo-constants:compileReleaseLibraryResources
+> Task :expo:compileReleaseLibraryResources
+> Task :expo-log-box:compileReleaseLibraryResources
+> Task :react-native-community_netinfo:compileReleaseLibraryResources
+> Task :react-native-async-storage_async-storage:compileReleaseLibraryResources
+> Task :mitsuharu_react-native-sunmi-printer-library:compileReleaseLibraryResources
+> Task :react-native-ping:compileReleaseLibraryResources
+> Task :react-native-thermal-receipt-printer-image-qr:compileReleaseLibraryResources
+> Task :react-native-safe-area-context:compileReleaseLibraryResources
+> Task :react-native-tcp-socket:compileReleaseLibraryResources
+> Task :react-native-view-shot:compileReleaseLibraryResources
+> Task :react-native-community_netinfo:bundleLibCompileToJarRelease
+> Task :expo:prepareReleaseArtProfile
+> Task :react-native-async-storage_async-storage:bundleLibCompileToJarRelease
+> Task :expo-constants:prepareReleaseArtProfile
+> Task :expo-log-box:prepareReleaseArtProfile
+> Task :mitsuharu_react-native-sunmi-printer-library:prepareReleaseArtProfile
+> Task :react-native-async-storage_async-storage:prepareReleaseArtProfile
+> Task :react-native-community_netinfo:prepareReleaseArtProfile
+> Task :react-native-ping:prepareReleaseArtProfile
+> Task :react-native-safe-area-context:prepareReleaseArtProfile
+> Task :react-native-thermal-receipt-printer-image-qr:prepareReleaseArtProfile
+> Task :react-native-tcp-socket:prepareReleaseArtProfile
+> Task :react-native-view-shot:prepareReleaseArtProfile
+> Task :react-native-tcp-socket:bundleLibCompileToJarRelease
+> Task :react-native-view-shot:bundleLibCompileToJarRelease
+> Task :react-native-community_netinfo:bundleLibRuntimeToJarRelease
+> Task :react-native-ping:bundleLibCompileToJarRelease
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToJarRelease
+> Task :react-native-thermal-receipt-printer-image-qr:bundleLibCompileToJarRelease
+> Task :react-native-ping:bundleLibRuntimeToJarRelease
+> Task :react-native-view-shot:bundleLibRuntimeToJarRelease
+> Task :react-native-thermal-receipt-printer-image-qr:bundleLibRuntimeToJarRelease
+> Task :react-native-tcp-socket:bundleLibRuntimeToJarRelease
+> Task :expo:mergeReleaseShaders
+> Task :expo:compileReleaseShaders NO-SOURCE
+> Task :expo:generateReleaseAssets UP-TO-DATE
+> Task :expo:mergeReleaseAssets
+> Task :expo-constants:mergeReleaseShaders
+> Task :expo-constants:compileReleaseShaders NO-SOURCE
+> Task :expo-constants:generateReleaseAssets UP-TO-DATE
+> Task :expo-constants:mergeReleaseAssets
+> Task :expo-log-box:mergeReleaseShaders
+> Task :expo-log-box:compileReleaseShaders NO-SOURCE
+> Task :expo-log-box:generateReleaseAssets UP-TO-DATE
+> Task :expo-log-box:mergeReleaseAssets
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseShaders
+> Task :mitsuharu_react-native-sunmi-printer-library:compileReleaseShaders NO-SOURCE
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseAssets UP-TO-DATE
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseAssets
+> Task :react-native-async-storage_async-storage:mergeReleaseShaders
+> Task :react-native-async-storage_async-storage:compileReleaseShaders NO-SOURCE
+> Task :react-native-async-storage_async-storage:generateReleaseAssets UP-TO-DATE
+> Task :react-native-community_netinfo:mergeReleaseShaders
+> Task :react-native-async-storage_async-storage:mergeReleaseAssets
+> Task :react-native-community_netinfo:compileReleaseShaders NO-SOURCE
+> Task :react-native-community_netinfo:generateReleaseAssets UP-TO-DATE
+> Task :react-native-ping:mergeReleaseShaders
+> Task :react-native-ping:compileReleaseShaders NO-SOURCE
+> Task :react-native-ping:generateReleaseAssets UP-TO-DATE
+> Task :react-native-community_netinfo:mergeReleaseAssets
+> Task :react-native-ping:mergeReleaseAssets
+> Task :react-native-safe-area-context:mergeReleaseShaders
+> Task :react-native-tcp-socket:mergeReleaseShaders
+> Task :react-native-tcp-socket:compileReleaseShaders NO-SOURCE
+> Task :react-native-tcp-socket:generateReleaseAssets UP-TO-DATE
+> Task :react-native-safe-area-context:compileReleaseShaders NO-SOURCE
+> Task :react-native-safe-area-context:generateReleaseAssets UP-TO-DATE
+> Task :react-native-tcp-socket:mergeReleaseAssets
+> Task :react-native-safe-area-context:mergeReleaseAssets
+> Task :react-native-view-shot:mergeReleaseShaders
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseShaders
+> Task :react-native-thermal-receipt-printer-image-qr:compileReleaseShaders NO-SOURCE
+> Task :react-native-view-shot:compileReleaseShaders NO-SOURCE
+> Task :react-native-view-shot:generateReleaseAssets UP-TO-DATE
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseAssets UP-TO-DATE
+> Task :react-native-view-shot:mergeReleaseAssets
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseAssets
+> Task :expo-log-box:extractProguardFiles
+> Task :expo:extractProguardFiles
+> Task :expo-constants:extractProguardFiles
+> Task :mitsuharu_react-native-sunmi-printer-library:extractProguardFiles
+> Task :react-native-async-storage_async-storage:processReleaseJavaRes NO-SOURCE
+> Task :expo-log-box:prepareLintJarForPublish
+> Task :mitsuharu_react-native-sunmi-printer-library:prepareLintJarForPublish
+> Task :expo:prepareLintJarForPublish
+> Task :expo-constants:prepareLintJarForPublish
+> Task :react-native-ping:processReleaseJavaRes NO-SOURCE
+> Task :react-native-community_netinfo:processReleaseJavaRes NO-SOURCE
+> Task :react-native-tcp-socket:processReleaseJavaRes NO-SOURCE
+> Task :react-native-safe-area-context:extractProguardFiles
+> Task :react-native-safe-area-context:prepareLintJarForPublish
+> Task :react-native-thermal-receipt-printer-image-qr:processReleaseJavaRes NO-SOURCE
+> Task :react-native-async-storage_async-storage:createFullJarRelease
+> Task :react-native-async-storage_async-storage:extractProguardFiles
+> Task :react-native-community_netinfo:createFullJarRelease
+> Task :react-native-thermal-receipt-printer-image-qr:createFullJarRelease
+> Task :react-native-community_netinfo:extractProguardFiles
+> Task :react-native-tcp-socket:createFullJarRelease
+> Task :react-native-thermal-receipt-printer-image-qr:extractProguardFiles
+> Task :react-native-ping:createFullJarRelease
+> Task :react-native-tcp-socket:extractProguardFiles
+> Task :react-native-ping:extractProguardFiles
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseLintModel
+> Task :react-native-thermal-receipt-printer-image-qr:prepareLintJarForPublish
+> Task :mitsuharu_react-native-sunmi-printer-library:stripReleaseDebugSymbols NO-SOURCE
+> Task :mitsuharu_react-native-sunmi-printer-library:copyReleaseJniLibsProjectAndLocalJars
+> Task :mitsuharu_react-native-sunmi-printer-library:extractDeepLinksForAarRelease
+> Task :react-native-safe-area-context:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-safe-area-context:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-safe-area-context:extractDeepLinksForAarRelease
+> Task :expo:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo:extractDeepLinksForAarRelease
+> Task :react-native-thermal-receipt-printer-image-qr:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-thermal-receipt-printer-image-qr:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-thermal-receipt-printer-image-qr:extractDeepLinksForAarRelease
+> Task :react-native-thermal-receipt-printer-image-qr:extractReleaseAnnotations
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseGeneratedProguardFiles
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseConsumerProguardFiles
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseJavaResource
+> Task :react-native-community_netinfo:generateReleaseLintModel
+> Task :react-native-thermal-receipt-printer-image-qr:syncReleaseLibJars
+> Task :react-native-community_netinfo:prepareLintJarForPublish
+> Task :react-native-community_netinfo:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-community_netinfo:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-community_netinfo:extractDeepLinksForAarRelease
+> Task :react-native-community_netinfo:extractReleaseAnnotations
+> Task :react-native-community_netinfo:mergeReleaseGeneratedProguardFiles
+> Task :react-native-community_netinfo:mergeReleaseConsumerProguardFiles
+> Task :react-native-thermal-receipt-printer-image-qr:bundleReleaseLocalLintAar
+> Task :expo-log-box:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-community_netinfo:mergeReleaseJavaResource
+> Task :react-native-async-storage_async-storage:generateReleaseLintModel
+> Task :react-native-async-storage_async-storage:prepareLintJarForPublish
+> Task :react-native-async-storage_async-storage:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-async-storage_async-storage:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-ping:generateReleaseLintModel
+> Task :react-native-async-storage_async-storage:extractDeepLinksForAarRelease
+> Task :react-native-ping:prepareLintJarForPublish
+> Task :react-native-community_netinfo:syncReleaseLibJars
+> Task :react-native-ping:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-ping:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-async-storage_async-storage:extractReleaseAnnotations
+> Task :react-native-ping:extractDeepLinksForAarRelease
+> Task :react-native-async-storage_async-storage:mergeReleaseGeneratedProguardFiles
+> Task :react-native-community_netinfo:bundleReleaseLocalLintAar
+> Task :react-native-tcp-socket:generateReleaseLintModel
+> Task :expo-constants:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-async-storage_async-storage:mergeReleaseConsumerProguardFiles
+> Task :react-native-ping:extractReleaseAnnotations
+> Task :react-native-tcp-socket:prepareLintJarForPublish
+> Task :react-native-ping:mergeReleaseGeneratedProguardFiles
+> Task :expo-constants:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-constants:extractDeepLinksForAarRelease
+> Task :react-native-tcp-socket:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-ping:mergeReleaseConsumerProguardFiles
+> Task :react-native-tcp-socket:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-constants:writeReleaseLintModelMetadata
+> Task :react-native-tcp-socket:extractDeepLinksForAarRelease
+> Task :react-native-async-storage_async-storage:mergeReleaseJavaResource
+> Task :expo:writeReleaseLintModelMetadata
+> Task :mitsuharu_react-native-sunmi-printer-library:writeReleaseLintModelMetadata
+> Task :react-native-tcp-socket:extractReleaseAnnotations
+> Task :react-native-tcp-socket:mergeReleaseGeneratedProguardFiles
+> Task :react-native-tcp-socket:mergeReleaseConsumerProguardFiles
+> Task :react-native-async-storage_async-storage:syncReleaseLibJars
+> Task :react-native-async-storage_async-storage:bundleReleaseLocalLintAar
+> Task :react-native-tcp-socket:mergeReleaseJavaResource
+> Task :react-native-ping:mergeReleaseJavaResource
+> Task :react-native-ping:syncReleaseLibJars
+> Task :react-native-tcp-socket:syncReleaseLibJars
+> Task :react-native-tcp-socket:bundleReleaseLocalLintAar
+> Task :react-native-async-storage_async-storage:writeReleaseLintModelMetadata
+> Task :react-native-community_netinfo:writeReleaseLintModelMetadata
+> Task :react-native-safe-area-context:writeReleaseLintModelMetadata
+
+> Task :react-native-svg:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+Note: Some input files use unchecked or unsafe operations.
+Note: Recompile with -Xlint:unchecked for details.
+
+> Task :react-native-view-shot:processReleaseJavaRes NO-SOURCE
+> Task :expo-log-box:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-ping:bundleReleaseLocalLintAar
+> Task :expo-log-box:extractDeepLinksForAarRelease
+> Task :react-native-ping:writeReleaseLintModelMetadata
+> Task :expo-log-box:writeReleaseLintModelMetadata
+> Task :react-native-tcp-socket:writeReleaseLintModelMetadata
+> Task :react-native-thermal-receipt-printer-image-qr:writeReleaseLintModelMetadata
+> Task :react-native-community_netinfo:generateReleaseLintVitalModel
+> Task :react-native-view-shot:createFullJarRelease
+> Task :react-native-async-storage_async-storage:generateReleaseLintVitalModel
+> Task :react-native-view-shot:extractProguardFiles
+> Task :react-native-ping:generateReleaseLintVitalModel
+> Task :react-native-tcp-socket:generateReleaseLintVitalModel
+> Task :react-native-view-shot:generateReleaseLintModel
+> Task :react-native-thermal-receipt-printer-image-qr:generateReleaseLintVitalModel
+> Task :react-native-view-shot:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-view-shot:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-view-shot:extractDeepLinksForAarRelease
+> Task :react-native-view-shot:prepareLintJarForPublish
+> Task :expo-constants:mapReleaseSourceSetPaths
+> Task :react-native-svg:writeReleaseAarMetadata
+> Task :react-native-svg:extractDeepLinksRelease
+> Task :expo:mapReleaseSourceSetPaths
+> Task :react-native-svg:processReleaseManifest
+> Task :react-native-screens:javaPreCompileRelease
+> Task :react-native-screens:writeReleaseAarMetadata
+> Task :react-native-screens:extractDeepLinksRelease
+> Task :react-native-screens:processReleaseManifest
+> Task :react-native-svg:bundleLibRuntimeToDirRelease
+> Task :react-native-screens:compileReleaseLibraryResources
+> Task :react-native-svg:compileReleaseLibraryResources
+> Task :expo-modules-core:javaPreCompileRelease
+> Task :expo-modules-core:writeReleaseAarMetadata
+> Task :expo-modules-core:extractDeepLinksRelease
+
+> Task :mitsuharu_react-native-sunmi-printer-library:compileReleaseKotlin
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/@mitsuharu/react-native-sunmi-printer-library/android/src/main/java/com/sunmiprinterlibrary/SunmiPrinterLibraryPackage.kt:9:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/@mitsuharu/react-native-sunmi-printer-library/android/src/main/java/com/sunmiprinterlibrary/SunmiScanerLibraryModule.kt:32:32 'fun getSerializable(p0: String?): Serializable?' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/@mitsuharu/react-native-sunmi-printer-library/android/src/main/java/com/sunmiprinterlibrary/SunmiScanerLibraryModule.kt:32:56 Unchecked cast of 'Serializable?' to 'ArrayList<HashMap<String, String>>'.
+
+> Task :expo-modules-core:processReleaseManifest
+D:\Rasidify\Tablet_POS_APP\node_modules\expo-modules-core\android\src\main\AndroidManifest.xml:8:9-11:45 Warning:
+	meta-data#com.facebook.soloader.enabled@android:value was tagged at AndroidManifest.xml:8 to replace other declarations but no other declaration present
+
+> Task :expo-modules-core:compileReleaseLibraryResources
+
+> Task :react-native-safe-area-context:compileReleaseKotlin
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaProviderManager.kt:39:19 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaView.kt:9:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaView.kt:50:54 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaView.kt:59:23 'val uiImplementation: UIImplementation!' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaViewShadowNode.kt:9:32 'class LayoutShadowNode : ReactShadowNodeImpl' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-safe-area-context/android/src/main/java/com/th3rdwave/safeareacontext/SafeAreaViewShadowNode.kt:110:61 'class NativeViewHierarchyOptimizer : Any' is deprecated. This class is part of Legacy Architecture and will be removed in a future release.
+
+> Task :react-native-svg:bundleLibCompileToJarRelease
+
+> Task :react-native-view-shot:extractReleaseAnnotations
+Warning: fr.greweb.reactnativeviewshot.ViewShot.Formats: The typedef annotation should have @Retention(RetentionPolicy.SOURCE)
+Warning: fr.greweb.reactnativeviewshot.ViewShot.Results: The typedef annotation should have @Retention(RetentionPolicy.SOURCE)
+
+> Task :react-native-screens:prepareReleaseArtProfile
+> Task :react-native-svg:prepareReleaseArtProfile
+> Task :expo-modules-core:prepareReleaseArtProfile
+> Task :expo-modules-core:mergeReleaseShaders
+> Task :expo-modules-core:compileReleaseShaders NO-SOURCE
+> Task :expo-modules-core:generateReleaseAssets UP-TO-DATE
+> Task :expo-modules-core:mergeReleaseAssets
+> Task :react-native-screens:mergeReleaseShaders
+> Task :react-native-screens:compileReleaseShaders NO-SOURCE
+> Task :react-native-screens:generateReleaseAssets UP-TO-DATE
+> Task :react-native-screens:mergeReleaseAssets
+> Task :react-native-svg:mergeReleaseShaders
+> Task :react-native-svg:compileReleaseShaders NO-SOURCE
+> Task :react-native-svg:generateReleaseAssets UP-TO-DATE
+> Task :react-native-svg:mergeReleaseAssets
+> Task :expo-modules-core:extractProguardFiles
+> Task :expo-modules-core:prepareLintJarForPublish
+> Task :react-native-screens:extractProguardFiles
+> Task :react-native-screens:prepareLintJarForPublish
+> Task :react-native-svg:processReleaseJavaRes NO-SOURCE
+> Task :react-native-svg:extractProguardFiles
+> Task :react-native-svg:generateReleaseLintModel
+> Task :react-native-svg:prepareLintJarForPublish
+> Task :react-native-svg:bundleLibRuntimeToJarRelease
+> Task :react-native-screens:stripReleaseDebugSymbols
+> Task :react-native-svg:createFullJarRelease
+> Task :react-native-screens:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-screens:extractDeepLinksForAarRelease
+> Task :react-native-svg:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-svg:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-svg:extractDeepLinksForAarRelease
+> Task :react-native-svg:extractReleaseAnnotations
+> Task :react-native-svg:mergeReleaseGeneratedProguardFiles
+> Task :react-native-svg:mergeReleaseConsumerProguardFiles
+> Task :react-native-svg:mergeReleaseJavaResource
+> Task :react-native-view-shot:mergeReleaseGeneratedProguardFiles
+> Task :react-native-view-shot:mergeReleaseConsumerProguardFiles
+> Task :react-native-view-shot:mergeReleaseJavaResource
+> Task :react-native-view-shot:syncReleaseLibJars
+> Task :react-native-view-shot:bundleReleaseLocalLintAar
+> Task :expo-modules-core:stripReleaseDebugSymbols
+> Task :expo-modules-core:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-modules-core:extractDeepLinksForAarRelease
+> Task :expo-modules-core:writeReleaseLintModelMetadata
+> Task :react-native-screens:writeReleaseLintModelMetadata
+> Task :react-native-view-shot:writeReleaseLintModelMetadata
+> Task :react-native-view-shot:generateReleaseLintVitalModel
+> Task :react-native-tcp-socket:lintVitalAnalyzeRelease
+> Task :react-native-community_netinfo:lintVitalAnalyzeRelease
+> Task :expo-constants:mergeReleaseResources
+> Task :react-native-svg:syncReleaseLibJars
+> Task :react-native-svg:bundleReleaseLocalLintAar
+> Task :react-native-ping:lintVitalAnalyzeRelease
+> Task :react-native-svg:writeReleaseLintModelMetadata
+> Task :react-native-svg:generateReleaseLintVitalModel
+> Task :expo-log-box:mapReleaseSourceSetPaths
+> Task :expo-constants:verifyReleaseResources
+> Task :expo-modules-core:mapReleaseSourceSetPaths
+> Task :react-native-view-shot:lintVitalAnalyzeRelease
+> Task :expo-modules-core:compileReleaseKotlin
+> Task :react-native-screens:compileReleaseKotlin
+> Task :react-native-thermal-receipt-printer-image-qr:lintVitalAnalyzeRelease
+> Task :react-native-async-storage_async-storage:bundleReleaseAar
+> Task :react-native-async-storage_async-storage:mapReleaseSourceSetPaths
+
+> Task :app:createBundleReleaseJsAndAssets
+Android Bundled 33134ms index.ts (1204 modules)
+Writing bundle output to: android\app\build\generated\assets\react\release\index.android.bundle
+Writing sourcemap output to: android\app\build\intermediates\sourcemaps\react\release\index.android.bundle.packager.map
+Copying 44 asset files
+Done writing bundle output
+Done writing sourcemap output
+
+> Task :react-native-community_netinfo:bundleReleaseAar
+> Task :react-native-community_netinfo:mapReleaseSourceSetPaths
+> Task :react-native-async-storage_async-storage:lintVitalAnalyzeRelease
+> Task :react-native-ping:bundleReleaseAar
+> Task :react-native-ping:mapReleaseSourceSetPaths
+> Task :react-native-svg:lintVitalAnalyzeRelease
+> Task :react-native-screens:mapReleaseSourceSetPaths
+> Task :expo:mergeReleaseResources
+> Task :react-native-async-storage_async-storage:mergeReleaseResources
+> Task :react-native-ping:mergeReleaseResources
+> Task :expo-modules-core:mergeReleaseResources
+> Task :react-native-community_netinfo:mergeReleaseResources
+> Task :react-native-screens:mergeReleaseResources
+> Task :expo-log-box:mergeReleaseResources
+> Task :react-native-safe-area-context:compileReleaseJavaWithJavac
+> Task :mitsuharu_react-native-sunmi-printer-library:compileReleaseJavaWithJavac
+> Task :react-native-ping:verifyReleaseResources
+> Task :react-native-ping:assembleRelease
+> Task :react-native-svg:bundleReleaseAar
+> Task :react-native-svg:mapReleaseSourceSetPaths
+
+> Task :react-native-screens:compileReleaseKotlin
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/RNScreensPackage.kt:70:9 The corresponding parameter in the supertype 'BaseReactPackage' is named 'name'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/RNScreensPackage.kt:71:9 The corresponding parameter in the supertype 'BaseReactPackage' is named 'reactContext'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/RNScreensPackage.kt:83:17 'constructor(name: String, className: String, canOverrideExistingModule: Boolean, needsEagerInit: Boolean, hasConstants: Boolean, isCxxModule: Boolean, isTurboModule: Boolean): ReactModuleInfo' is deprecated. This constructor is deprecated and will be removed in the future. Use ReactModuleInfo(String, String, boolean, boolean, boolean, boolean)].
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt:54:77 Unchecked cast of '(CoordinatorLayout.Behavior<View!>?..CoordinatorLayout.Behavior<*>?)' to 'BottomSheetBehavior<Screen>'.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt:59:33 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/Screen.kt:516:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt:250:18 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenContainer.kt:260:18 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:225:37 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:242:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:258:22 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenFragment.kt:327:22 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenModalFragment.kt:180:22 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStack.kt:120:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:173:18 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:230:31 'var targetElevation: Float' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:233:13 'fun setHasOptionsMenu(p0: Boolean): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:443:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:450:22 'fun onPrepareOptionsMenu(p0: Menu): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:453:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackFragment.kt:458:22 'fun onCreateOptionsMenu(p0: Menu, p1: MenuInflater): Unit' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt:199:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenStackHeaderConfig.kt:209:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:48:42 'fun replaceSystemWindowInsets(p0: Int, p1: Int, p2: Int, p3: Int): @NonNull() WindowInsetsCompat' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:49:39 'val systemWindowInsetLeft: Int' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:51:39 'val systemWindowInsetRight: Int' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreenWindowTraits.kt:52:39 'val systemWindowInsetBottom: Int' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/ScreensModule.kt:100:14 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/SearchBarView.kt:137:29 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:7:8 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:25:13 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:32:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'left'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:33:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'top'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:34:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'right'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:35:9 The corresponding parameter in the supertype 'ReactViewGroup' is named 'bottom'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:71:9 The corresponding parameter in the supertype 'RootView' is named 'childView'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:72:9 The corresponding parameter in the supertype 'RootView' is named 'ev'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:79:46 The corresponding parameter in the supertype 'RootView' is named 'ev'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:83:9 The corresponding parameter in the supertype 'RootView' is named 'childView'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:84:9 The corresponding parameter in the supertype 'RootView' is named 'ev'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/BottomSheetDialogRootView.kt:95:34 The corresponding parameter in the supertype 'RootView' is named 't'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:64:9 The corresponding parameter in the supertype 'ReactCompoundView' is named 'touchX'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:65:9 The corresponding parameter in the supertype 'ReactCompoundView' is named 'touchY'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:69:9 The corresponding parameter in the supertype 'ReactCompoundViewGroup' is named 'touchX'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/bottomsheet/DimmingView.kt:70:9 The corresponding parameter in the supertype 'ReactCompoundViewGroup' is named 'touchY'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/common/event/BaseEventEmitter.kt:12:38 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/dimmingview/DimmingView.kt:64:9 The corresponding parameter in the supertype 'ReactCompoundView' is named 'touchX'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/dimmingview/DimmingView.kt:65:9 The corresponding parameter in the supertype 'ReactCompoundView' is named 'touchY'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/dimmingview/DimmingView.kt:69:9 The corresponding parameter in the supertype 'ReactCompoundViewGroup' is named 'touchX'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/dimmingview/DimmingView.kt:70:9 The corresponding parameter in the supertype 'ReactCompoundViewGroup' is named 'touchY'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/formsheet/FormSheetContentView.kt:11:8 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/formsheet/FormSheetContentView.kt:39:33 'fun getEventDispatcher(context: ReactContext, uiManagerType: Int): EventDispatcher?' is deprecated. UIManagerType is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/formsheet/FormSheetContentView.kt:44:13 'object ReactFeatureFlags : Any' is deprecated. Use com.facebook.react.internal.featureflags.ReactNativeFeatureFlags instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/modals/formsheet/FormSheetHostViewManager.kt:38:9 The corresponding parameter in the supertype 'FormSheetHostViewManager' is named 'view'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/host/TabsHostViewManager.kt:44:9 The corresponding parameter in the supertype 'TabsHostViewManager' is named 'view'. This may cause problems when calling this function with named arguments.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/safearea/SafeAreaView.kt:143:45 'fun consumeDisplayCutout(): @NonNull() WindowInsetsCompat' is deprecated. Deprecated in Java.
+
+> Task :expo-modules-core:verifyReleaseResources
+> Task :react-native-async-storage_async-storage:verifyReleaseResources
+> Task :react-native-async-storage_async-storage:assembleRelease
+> Task :app:preBuild
+> Task :app:preReleaseBuild
+> Task :react-native-community_netinfo:verifyReleaseResources
+> Task :react-native-community_netinfo:assembleRelease
+> Task :react-native-view-shot:bundleReleaseAar
+> Task :react-native-thermal-receipt-printer-image-qr:bundleReleaseAar
+> Task :react-native-view-shot:mapReleaseSourceSetPaths
+> Task :react-native-thermal-receipt-printer-image-qr:mapReleaseSourceSetPaths
+> Task :mitsuharu_react-native-sunmi-printer-library:bundleLibRuntimeToDirRelease
+> Task :react-native-svg:mergeReleaseResources
+> Task :mitsuharu_react-native-sunmi-printer-library:bundleLibCompileToJarRelease
+> Task :mitsuharu_react-native-sunmi-printer-library:bundleLibRuntimeToJarRelease
+> Task :mitsuharu_react-native-sunmi-printer-library:processReleaseJavaRes
+> Task :mitsuharu_react-native-sunmi-printer-library:createFullJarRelease
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseLintModel
+> Task :mitsuharu_react-native-sunmi-printer-library:extractReleaseAnnotations
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseGeneratedProguardFiles
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseConsumerProguardFiles
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseJavaResource
+> Task :expo:verifyReleaseResources
+> Task :mitsuharu_react-native-sunmi-printer-library:syncReleaseLibJars
+> Task :mitsuharu_react-native-sunmi-printer-library:bundleReleaseLocalLintAar
+> Task :react-native-view-shot:mergeReleaseResources
+> Task :mitsuharu_react-native-sunmi-printer-library:generateReleaseLintVitalModel
+> Task :mitsuharu_react-native-sunmi-printer-library:bundleReleaseAar
+> Task :mitsuharu_react-native-sunmi-printer-library:mapReleaseSourceSetPaths
+> Task :react-native-thermal-receipt-printer-image-qr:mergeReleaseResources
+
+> Task :expo-modules-core:compileReleaseKotlin
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/apploader/AppLoaderProvider.kt:34:52 Unchecked cast of 'Class<*>!' to 'Class<out HeadlessAppLoader>'.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:14:8 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:22:8 'typealias ErrorManagerModule = JSLoggerModule' is deprecated. Use JSLoggerModule instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:61:13 'val hostingRuntimeContext: MainRuntime' is deprecated. Use AppContext.runtimeContext instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:271:21 'typealias ErrorManagerModule = JSLoggerModule' is deprecated. Use JSLoggerModule instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:380:21 'val DEFAULT: Int' is deprecated. UIManagerType.DEFAULT will be deleted in the next release of React Native. Use [LEGACY] instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/AppContext.kt:381:10 'class UIManagerModule : ReactContextBaseJavaModule, LifecycleEventListener, UIManager' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/defaultmodules/NativeModulesProxyModule.kt:16:5 'fun Constants(legacyConstantsProvider: () -> Map<String, Any?>): Unit' is deprecated. Use `Constant` or `Property` instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/events/KModuleEventEmitterWrapper.kt:99:21 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/events/KModuleEventEmitterWrapper.kt:108:21 'fun getEventDispatcherForReactTag(context: ReactContext, reactTag: Int): EventDispatcher?' is deprecated. reactTag is no longer needed.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewDefinitionBuilder.kt:470:16 'val errorManager: JSLoggerModule?' is deprecated. Use AppContext.jsLogger instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewDefinitionBuilder.kt:470:30 'fun reportExceptionToLogBox(codedException: CodedException): Unit' is deprecated. Use appContext.jsLogger.error(...) instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewManagerDefinition.kt:41:16 'val errorManager: JSLoggerModule?' is deprecated. Use AppContext.jsLogger instead.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo-modules-core/android/src/main/java/expo/modules/kotlin/views/ViewManagerDefinition.kt:41:30 'fun reportExceptionToLogBox(codedException: CodedException): Unit' is deprecated. Use appContext.jsLogger.error(...) instead.
+
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-screens:verifyReleaseResources
+> Task :expo-log-box:verifyReleaseResources
+> Task :mitsuharu_react-native-sunmi-printer-library:lintVitalAnalyzeRelease
+> Task :react-native-svg:verifyReleaseResources
+> Task :react-native-svg:assembleRelease
+> Task :react-native-tcp-socket:bundleReleaseAar
+> Task :react-native-tcp-socket:mapReleaseSourceSetPaths
+> Task :react-native-safe-area-context:processReleaseJavaRes
+> Task :react-native-safe-area-context:bundleLibCompileToJarRelease
+> Task :react-native-safe-area-context:bundleLibRuntimeToJarRelease
+> Task :react-native-safe-area-context:generateReleaseLintModel
+> Task :react-native-safe-area-context:bundleLibRuntimeToDirRelease
+> Task :react-native-safe-area-context:createFullJarRelease
+> Task :react-native-safe-area-context:extractReleaseAnnotations
+> Task :react-native-safe-area-context:mergeReleaseGeneratedProguardFiles
+> Task :react-native-safe-area-context:mergeReleaseConsumerProguardFiles
+> Task :react-native-safe-area-context:mergeReleaseJavaResource
+> Task :mitsuharu_react-native-sunmi-printer-library:mergeReleaseResources
+> Task :react-native-screens:compileReleaseJavaWithJavac
+> Task :react-native-safe-area-context:syncReleaseLibJars
+> Task :react-native-safe-area-context:bundleReleaseLocalLintAar
+> Task :react-native-safe-area-context:generateReleaseLintVitalModel
+> Task :react-native-safe-area-context:bundleReleaseAar
+> Task :react-native-safe-area-context:mapReleaseSourceSetPaths
+> Task :react-native-thermal-receipt-printer-image-qr:verifyReleaseResources
+> Task :react-native-thermal-receipt-printer-image-qr:assembleRelease
+
+> Task :expo-modules-core:compileReleaseJavaWithJavac
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+
+> Task :react-native-screens:processReleaseJavaRes
+> Task :react-native-screens:generateReleaseLintModel
+> Task :react-native-screens:extractReleaseAnnotations
+> Task :react-native-screens:mergeReleaseGeneratedProguardFiles
+> Task :react-native-screens:mergeReleaseConsumerProguardFiles
+> Task :react-native-screens:bundleLibCompileToJarRelease
+> Task :react-native-screens:bundleLibRuntimeToJarRelease
+> Task :react-native-screens:mergeReleaseJavaResource
+> Task :react-native-screens:createFullJarRelease
+> Task :react-native-screens:bundleLibRuntimeToDirRelease
+> Task :react-native-view-shot:verifyReleaseResources
+> Task :expo-modules-core:processReleaseJavaRes
+> Task :expo-modules-core:generateReleaseLintModel
+> Task :expo-modules-core:extractReleaseAnnotations
+> Task :expo-modules-core:mergeReleaseGeneratedProguardFiles
+> Task :expo-modules-core:mergeReleaseConsumerProguardFiles
+> Task :expo-modules-core:mergeReleaseJavaResource
+> Task :react-native-safe-area-context:lintVitalAnalyzeRelease
+> Task :react-native-view-shot:assembleRelease
+> Task :expo-modules-core:bundleLibCompileToJarRelease
+> Task :react-native-screens:syncReleaseLibJars
+> Task :expo-modules-core:bundleLibRuntimeToJarRelease
+> Task :expo-modules-core:syncReleaseLibJars
+> Task :react-native-safe-area-context:mergeReleaseResources
+> Task :expo-modules-core:createFullJarRelease
+> Task :expo-modules-core:bundleReleaseLocalLintAar
+> Task :expo-modules-core:generateReleaseLintVitalModel
+> Task :expo-modules-core:bundleReleaseAar
+> Task :expo-modules-core:assembleRelease
+
+> Task :expo-constants:compileReleaseKotlin
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/node_modules/expo-constants/android/src/main/java/expo/modules/constants/ConstantsModule.kt:13:5 'fun Constants(legacyConstantsProvider: () -> Map<String, Any?>): Unit' is deprecated. Use `Constant` or `Property` instead.
+
+> Task :expo-modules-core:bundleLibRuntimeToDirRelease
+> Task :react-native-screens:bundleReleaseLocalLintAar
+> Task :react-native-tcp-socket:mergeReleaseResources
+> Task :react-native-screens:generateReleaseLintVitalModel
+> Task :react-native-screens:bundleReleaseAar
+> Task :react-native-screens:assembleRelease
+> Task :expo-log-box:compileReleaseKotlin
+> Task :expo-constants:compileReleaseJavaWithJavac
+> Task :expo-constants:bundleLibCompileToJarRelease
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo-constants:bundleLibRuntimeToDirRelease
+> Task :expo-constants:bundleLibRuntimeToJarRelease
+> Task :expo-log-box:compileReleaseJavaWithJavac
+> Task :expo-log-box:bundleLibCompileToJarRelease
+> Task :expo-log-box:bundleLibRuntimeToDirRelease
+> Task :expo-log-box:bundleLibRuntimeToJarRelease
+> Task :mitsuharu_react-native-sunmi-printer-library:verifyReleaseResources
+> Task :expo-constants:processReleaseJavaRes
+> Task :expo-log-box:processReleaseJavaRes
+> Task :mitsuharu_react-native-sunmi-printer-library:assembleRelease
+> Task :expo-log-box:createFullJarRelease
+> Task :expo-constants:createFullJarRelease
+> Task :expo-constants:generateReleaseLintModel
+> Task :expo-constants:extractReleaseAnnotations
+> Task :expo-constants:mergeReleaseGeneratedProguardFiles
+> Task :expo-constants:mergeReleaseConsumerProguardFiles
+> Task :expo-constants:mergeReleaseJavaResource
+> Task :expo-log-box:generateReleaseLintModel
+> Task :expo-constants:generateReleaseLintVitalModel
+> Task :expo-log-box:extractReleaseAnnotations
+> Task :expo-log-box:mergeReleaseGeneratedProguardFiles
+> Task :expo-log-box:mergeReleaseConsumerProguardFiles
+> Task :expo-log-box:generateReleaseLintVitalModel
+> Task :expo-log-box:mergeReleaseJavaResource
+> Task :expo-constants:syncReleaseLibJars
+> Task :expo-constants:bundleReleaseLocalLintAar
+> Task :expo-constants:bundleReleaseAar
+> Task :expo-constants:assembleRelease
+> Task :expo-log-box:syncReleaseLibJars
+> Task :expo-log-box:bundleReleaseLocalLintAar
+> Task :expo-log-box:bundleReleaseAar
+> Task :expo-log-box:assembleRelease
+> Task :expo-constants:lintVitalAnalyzeRelease
+> Task :expo-log-box:lintVitalAnalyzeRelease
+> Task :react-native-screens:lintVitalAnalyzeRelease
+> Task :expo-modules-core:lintVitalAnalyzeRelease
+> Task :react-native-safe-area-context:verifyReleaseResources
+> Task :react-native-tcp-socket:verifyReleaseResources
+> Task :react-native-safe-area-context:assembleRelease
+> Task :react-native-tcp-socket:assembleRelease
+> Task :expo:compileReleaseKotlin
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/ExpoModulesPackage.kt:34:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:22:8 'class ReactInstanceManager : Any' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:102:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:102:43 'class ReactInstanceManager : Any' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/ReactActivityDelegateWrapper.kt:103:21 'val reactInstanceManager: ReactInstanceManager' is deprecated. Deprecated in Java.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/fetch/ExpoFetchModule.kt:33:39 'constructor(reactContext: ReactContext): ForwardingCookieHandler' is deprecated. Use the default constructor.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/fetch/NativeResponse.kt:44:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///D:/Rasidify/Tablet_POS_APP/node_modules/expo/android/src/main/java/expo/modules/fetch/NativeResponse.kt:46:11 'fun deallocate(): Unit' is deprecated. Use sharedObjectDidRelease() instead.
+The Daemon will expire after the build after running out of JVM Metaspace.
+The project memory settings are likely not configured or are configured to an insufficient value.
+The daemon will restart for the next build, which may increase subsequent build times.
+These settings can be adjusted by setting 'org.gradle.jvmargs' in 'gradle.properties'.
+The currently configured max heap space is '2 GiB' and the configured max metaspace is '512 MiB'.
+For more information on how to set these values, please refer to https://docs.gradle.org/9.3.1/userguide/build_environment.html#sec:configuring_jvm_memory in the Gradle documentation.
+To disable this warning, set 'org.gradle.daemon.performance.disable-logging=true'.
+Daemon will be stopped at the end of the build after running out of JVM Metaspace
+
+> Task :expo:compileReleaseJavaWithJavac
+> Task :expo:bundleLibRuntimeToDirRelease
+> Task :expo:processReleaseJavaRes
+> Task :expo:bundleLibCompileToJarRelease
+> Task :expo:generateReleaseLintModel
+> Task :expo:extractReleaseAnnotations
+> Task :expo:mergeReleaseGeneratedProguardFiles
+> Task :expo:mergeReleaseConsumerProguardFiles
+> Task :expo:mergeReleaseJavaResource
+> Task :expo:syncReleaseLibJars
+> Task :expo:bundleReleaseLocalLintAar
+> Task :expo:generateReleaseLintVitalModel
+> Task :expo:bundleReleaseAar
+> Task :expo:assembleRelease
+> Task :expo:bundleLibRuntimeToJarRelease
+> Task :expo:createFullJarRelease
+> Task :expo:lintVitalAnalyzeRelease
+
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+C/C++: Hard link from 'C:\Users\mshah\.gradle\caches\9.3.1\transforms\a2ad667c1455f942621506f7853c7d9d\workspace\transformed\react-android-0.86.3-release\prefab\modules\reactnative\libs\android.arm64-v8a\libreactnative.so' to 'D:\Rasidify\Tablet_POS_APP\android\app\build\intermediates\cxx\RelWithDebInfo\4z549274\obj\arm64-v8a\libreactnative.so' failed. Doing a slower copy instead.
+C/C++: Hard link from 'C:\Users\mshah\.gradle\caches\9.3.1\transforms\a2ad667c1455f942621506f7853c7d9d\workspace\transformed\react-android-0.86.3-release\prefab\modules\reactnative\libs\android.arm64-v8a\libreactnative.so' to 'D:\Rasidify\Tablet_POS_APP\android\app\build\intermediates\cxx\RelWithDebInfo\4z549274\obj\arm64-v8a\libreactnative.so' failed. Doing a slower copy instead.
+
+> Task :app:mergeReleaseJniLibFolders
+> Task :app:generateReleaseBuildConfig
+> Task :app:generateReleaseResValues
+> Task :app:checkReleaseAarMetadata
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:mergeReleaseNativeLibs
+> Task :app:packageReleaseResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :app:parseReleaseLocalResources
+
+> Task :app:processReleaseMainManifest
+D:\Rasidify\Tablet_POS_APP\android\app\src\main\AndroidManifest.xml Warning:
+	provider#expo.modules.filesystem.FileSystemFileProvider@android:authorities was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+
+> Task :app:expoReleaseOverrideMaxSdkConflicts
+[33m---------- Expo Max Sdk Override Plugin ----------[0m
+[32m>>> No 'android:maxSdkVersion' conflicts found[0m
+[33m--------------------------------------------------[0m
+
+> Task :app:processReleaseManifest
+> Task :app:javaPreCompileRelease
+> Task :app:desugarReleaseFileDependencies
+> Task :app:processReleaseManifestForPackage
+> Task :app:mergeReleaseStartupProfile
+> Task :app:stripReleaseDebugSymbols
+> Task :app:mergeReleaseShaders
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseArtProfile
+> Task :app:mergeReleaseAssets
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:extractProguardFiles
+> Task :app:compressReleaseAssets
+> Task :app:extractReleaseNativeSymbolTables
+> Task :app:collectReleaseDependencies
+> Task :app:sdkReleaseDependencyData
+> Task :app:validateSigningRelease
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:mergeReleaseResources
+> Task :app:mergeReleaseNativeDebugMetadata
+> Task :app:processReleaseResources
+> Task :app:mergeExtDexRelease
+> Task :app:optimizeReleaseResources
+> Task :app:compileReleaseKotlin
+> Task :app:compileReleaseJavaWithJavac
+> Task :app:dexBuilderRelease
+> Task :app:generateReleaseLintVitalReportModel
+> Task :app:mergeReleaseGlobalSynthetics
+> Task :app:processReleaseJavaRes
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:lintVitalReportRelease
+> Task :app:lintVitalRelease
+> Task :app:mergeReleaseJavaResource
+> Task :app:mergeDexRelease
+> Task :app:compileReleaseArtProfile
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :app:assembleRelease
+
+[Incubating] Problems report is available at: file:///D:/Rasidify/Tablet_POS_APP/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 4m 8s
+670 actionable tasks: 642 executed, 28 up-to-date

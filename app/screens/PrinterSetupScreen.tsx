@@ -1,8 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, FlatList, Modal,
-} from 'react-native';
+  ScrollView, ActivityIndicator, FlatList, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
@@ -10,6 +9,7 @@ import Icon from '../components/Icon';
 import { usePrinterStore } from '../store/printerStore';
 import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
 import { useAuthStore } from '../store/authStore';
+import { getStoreInfo, storeFields } from '../store/sessionStore';
 import { DiscoveredPrinter, UsbPrinterDevice } from '../types/receipt';
 import {
   printReceipt,
@@ -19,6 +19,7 @@ import {
   BluetoothDevice,
 } from '../services/PrinterService';
 import { buildSimpleReceipt } from '../services/escpos/ReceiptBuilder';
+import { appAlert } from '../utils/appAlert';
 
 type DiscoverStep = 'idle' | 'scanning' | 'done';
 
@@ -108,7 +109,7 @@ export default function PrinterSetupScreen() {
     setUsbDevices(devices);
     setLoadingUsb(false);
     if (devices.length === 0) {
-      Alert.alert('No USB Printers Found', 'Make sure the printer is connected via OTG cable.');
+      appAlert('No USB Printers Found', 'Make sure the printer is connected via OTG cable.');
     }
   };
 
@@ -128,10 +129,10 @@ export default function PrinterSetupScreen() {
       const devices = await scanBluetoothDevices();
       setBtDevices(devices);
       if (devices.length === 0) {
-        Alert.alert('No Devices Found', 'This lists already-paired printers. Pair the printer in Android Settings first.');
+        appAlert('No Devices Found', 'This lists already-paired printers. Pair the printer in Android Settings first.');
       }
     } catch (e: any) {
-      Alert.alert('Bluetooth Scan Failed', e.message ?? 'Unknown error');
+      appAlert('Bluetooth Scan Failed', e.message ?? 'Unknown error');
     } finally {
       setScanningBt(false);
     }
@@ -159,11 +160,7 @@ export default function PrinterSetupScreen() {
           total: 11.50,
           payments: [{ method: 'Cash', amount: 11.50 }],
           change: 0, time: new Date(),
-          companyName: settings.companyName || user?.companyName || 'Rasidify POS',
-          address: settings.address || user?.companyAddress,
-          vatNumber: settings.vatNumber,
-          phone: settings.phone || user?.companyPhone,
-          logoUrl: user?.companyLogoUrl,
+          ...storeFields(getStoreInfo(user)),
           currency: 'SAR',
         },
         settings,
@@ -178,10 +175,10 @@ export default function PrinterSetupScreen() {
       const result = await printReceipt(content, config);
       if (result.success) {
         printer.update({ networkVerified: true });
-        Alert.alert('Test Print Sent', 'Check your printer.');
+        appAlert('Test Print Sent', 'Check your printer.');
       } else {
         printer.update({ networkVerified: false });
-        Alert.alert('Test Failed', result.error);
+        appAlert('Test Failed', result.error);
       }
     } finally {
       setTesting(false);

@@ -59,7 +59,12 @@ export const deviceService = {
       vendorIdentifier: '',
       serialNumber: '',
     };
-    const res = await posApi.post('/pos/device/authenticate', body);
+    const res = await posApi.post('/pos/device/authenticate', body, {
+      // One-time and not safely retryable: if the server claims the code but
+      // the reply is lost, the code stays claimed and needs an admin
+      // Disconnect. Allow for a slow (cold) server rather than giving up at 15s.
+      timeout: 60000,
+    });
     const code: string | undefined = res.data?.data?.authenticatedCode;
     // Matches web's auth.service.ts: status is numeric (1 = success), not the
     // string "Success" shown in the spec doc's example — the code's presence
@@ -75,7 +80,7 @@ export const deviceService = {
   async deviceLogin(passcode: string): Promise<{ token: string; user: PosUser }> {
     const deviceUniqueID = await deviceService.getDeviceUniqueId();
     const authenticatedCode = (await deviceService.getDeviceAuthenticatedCode()) ?? '';
-    const res = await posApi.post('/pos/device-login', { deviceUniqueID, authenticatedCode, passcode });
+    const res = await posApi.post('/pos/device-login', { deviceUniqueID, authenticatedCode, passcode }, { timeout: 45000 });
 
     const token: string = res.data.token;
     const u = res.data.authenticatedUser;
@@ -112,8 +117,11 @@ export const deviceService = {
       companyAddress: profile?.companyAddress,
       companyPhone:   profile?.companyPhone,
       companyLogoUrl: profile?.companyLogoUrl,
+      vatNumber:      profile?.vatNumber,
+      isTaxRegistered: profile?.isTaxRegistered,
       rights:     u.rights ?? [],
       industryType: profile?.industryType ?? 'retail',
+      deviceID:   Number(u.deviceID ?? u.posDeviceID ?? u.devicesID ?? 0) || null,
     };
 
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));

@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
+import { appAlert } from '../utils/appAlert';
 
 const ITEMS = [
+  { key: 'kitchenDisplay', label: 'Kitchen Display', icon: 'tv' },
+  { key: 'customerDisplay', label: 'Customer Display', icon: 'desktop' },
   { key: 'posSettings', label: 'POS Settings', icon: 'sliders-h' },
   { key: 'printerSettings', label: 'Printer Settings', icon: 'print' },
   { key: 'settings', label: 'Settings', icon: 'cog' },
@@ -21,6 +24,14 @@ type Props = {
 
 export default function MenuScreen({ onLogout, onEndShift, navigation }: Props) {
   const handlePress = (key: string, label: string) => {
+    if (key === 'kitchenDisplay') {
+      navigation.navigate('KitchenDisplay');
+      return;
+    }
+    if (key === 'customerDisplay') {
+      navigation.navigate('CustomerDisplay');
+      return;
+    }
     if (key === 'posSettings') {
       navigation.navigate('PosSettings');
       return;
@@ -41,7 +52,7 @@ export default function MenuScreen({ onLogout, onEndShift, navigation }: Props) 
       navigation.navigate('Settings');
       return;
     }
-    Alert.alert(label, 'Coming soon.');
+    appAlert(label, 'Coming soon.');
   };
 
   return (

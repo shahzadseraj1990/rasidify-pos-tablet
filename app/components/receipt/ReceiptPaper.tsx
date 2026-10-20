@@ -1,5 +1,6 @@
-import React, { useContext, useMemo, useState } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import React, { forwardRef, useContext, useMemo, useState } from 'react';
+import { View, Text, Image, StyleSheet, PixelRatio } from 'react-native';
+import ViewShot from 'react-native-view-shot';
 import Config from '../../config';
 import { Colors } from '../../utils/colors';
 import Money from '../Money';
@@ -23,19 +24,62 @@ const resolveLogoUri = (url?: string): string | undefined => {
   return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
 };
 
+// Print head widths in dots (203 dpi): 58mm → 384, 80mm → 576.
+const PRINT_DOTS: Record<58 | 80, number> = { 58: 384, 80: 576 };
+// Layout width (dp) the receipt's sizes were tuned for (the old 360-wide
+// capture minus its 20dp padding); the print copy scales from it.
+const PRINT_REF_WIDTH = 320;
+
+/**
+ * Off-screen, print-only receipt for "Image Canvas" mode, laid out at exactly
+ * the print head's dot width (1 device px = 1 printer dot). The old capture
+ * was a 360dp view shrunk to the head width, which resampled the text and
+ * left glyph edges ragged; rendered at the final size, Android draws every
+ * glyph crisp and the QR modules land on whole dots. Pass the ref to
+ * printReceiptNow / buildImageCanvasReceipt.
+ */
+export const ReceiptPrintCapture = forwardRef<any, {
+  receipt: ReceiptData;
+  settings: ReceiptSettings;
+  paperWidth: 58 | 80;
+}>(function ReceiptPrintCapture({ receipt, settings, paperWidth }, ref) {
+  const widthDp = PRINT_DOTS[paperWidth] / PixelRatio.get();
+  return (
+    <View style={captureStyles.offscreen} pointerEvents="none">
+      <ViewShot ref={ref} style={[captureStyles.paper, { width: widthDp }]} options={{ format: 'png', quality: 1 }}>
+        <ReceiptPaper
+          receipt={receipt} settings={settings} paperWidth={paperWidth}
+          scale={(widthDp - 4) / PRINT_REF_WIDTH}
+        />
+      </ViewShot>
+    </View>
+  );
+});
+
+const captureStyles = StyleSheet.create({
+  offscreen: { position: 'absolute', left: -10000, top: 0 },
+  paper: { backgroundColor: '#fff', paddingHorizontal: 2 },
+});
+
 export function ReceiptPaper({
-  receipt, settings, paperWidth = 80,
+  receipt, settings, paperWidth = 80, scale = 1,
 }: {
   receipt: ReceiptData;
   settings: ReceiptSettings;
   paperWidth?: 58 | 80;
+  // Multiplies every font and fixed size (see ReceiptPrintCapture).
+  scale?: number;
 }) {
   const cur = receipt.currency || 'SAR';
   const detailed = settings.receiptTemplate === 'detailed';
-  const phone = settings.phone || receipt.phone;
-  const logoUri = resolveLogoUri(settings.logoUrl || receipt.logoUrl);
+  // Store details come from the account profile (ReceiptData), never local settings.
+  const phone = receipt.phone;
+  const logoUri = resolveLogoUri(receipt.logoUrl);
   const [logoFailed, setLogoFailed] = useState(false);
-  const rStyles = useMemo(() => createReceiptStyles(paperWidth <= 58 ? 1.2 : 1), [paperWidth]);
+  const rStyles = useMemo(
+    () => createReceiptStyles((paperWidth <= 58 ? 1.2 : 1) * scale, scale),
+    [paperWidth, scale],
+  );
   return (
     <RStylesContext.Provider value={rStyles}>
       <ReceiptPaperContent
@@ -68,13 +112,13 @@ function ReceiptPaperContent({
             <Image source={{ uri: logoUri }} style={rStyles.logoImage} resizeMode="contain" onError={() => setLogoFailed(true)} />
           ) : (
             <View style={rStyles.logoPlaceholder}>
-              <Text style={rStyles.logoText}>{(settings.companyName || receipt.companyName || 'STORE').charAt(0).toUpperCase()}</Text>
+              <Text style={rStyles.logoText}>{(receipt.companyName || 'STORE').charAt(0).toUpperCase()}</Text>
             </View>
           )
         )}
-        <Text style={rStyles.storeName}>{settings.companyName || receipt.companyName || ''}</Text>
-        {(settings.address || receipt.address) ? <Text style={rStyles.storeMeta}>{settings.address || receipt.address}</Text> : null}
-        {(settings.vatNumber || receipt.vatNumber) ? <Text style={rStyles.storeMeta}>VAT# {settings.vatNumber || receipt.vatNumber}</Text> : null}
+        <Text style={rStyles.storeName}>{receipt.companyName || ''}</Text>
+        {receipt.address ? <Text style={rStyles.storeMeta}>{receipt.address}</Text> : null}
+        {receipt.vatNumber ? <Text style={rStyles.storeMeta}>VAT# {receipt.vatNumber}</Text> : null}
         {detailed && phone ? <Text style={rStyles.storeMeta}>Phone No: {phone}</Text> : null}
       </View>
 
@@ -105,7 +149,7 @@ function ReceiptPaperContent({
 
       <View style={rStyles.totals}>
         {receipt.discount > 0 && (
-          <TotalRow label={bilabel('Discount', 'خصم', settings.bilingualLabels)} value={<Money amount={receipt.discount} currency={cur} prefix="-" style={[rStyles.totalValue, { color: Colors.danger }]} />} valueColor={Colors.danger} />
+          <TotalRow label={bilabel('Discount', 'خصم', settings.bilingualLabels)} value={<Money amount={receipt.discount} currency={cur} prefix="-" style={rStyles.totalValue} />} />
         )}
         <TotalRow label={bilabel('Sub Total', 'المجموع', settings.bilingualLabels)} value={<Money amount={receipt.subtotal} currency={cur} style={rStyles.totalValue} />} />
         {receipt.vat > 0 && (
@@ -119,7 +163,7 @@ function ReceiptPaperContent({
         {receipt.payments.map((pay, i) => (
           <TotalRow key={i} label={`Payment - ${pay.method}`} value={<Money amount={pay.amount} currency={cur} style={rStyles.totalValue} />} />
         ))}
-        {receipt.change > 0 && <TotalRow label="Change" value={<Money amount={receipt.change} currency={cur} style={[rStyles.totalValue, { color: Colors.success }]} />} valueColor={Colors.success} />}
+        {receipt.change > 0 && <TotalRow label="Change" value={<Money amount={receipt.change} currency={cur} style={rStyles.totalValue} />} />}
       </View>
 
       {receipt.orderNote ? (
@@ -133,7 +177,7 @@ function ReceiptPaperContent({
 
       {receipt.zatcaQrCode ? (
         <View style={rStyles.qrBox}>
-          <ZatcaQrCode value={receipt.zatcaQrCode} size={180} />
+          <ZatcaQrCode value={receipt.zatcaQrCode} size={180 * rStyles.layoutScale} pxPerDp={PixelRatio.get()} />
         </View>
       ) : null}
 
@@ -172,7 +216,7 @@ function SimpleItems({ items, settings, cur }: { items: ReceiptData['items']; se
             <Money amount={item.qty * item.price} currency={cur} style={rStyles.itemAmt} />
           </View>
           {settings.showAlternateName && item.alternateName ? <Text style={rStyles.itemAltName}>{item.alternateName}</Text> : null}
-          {item.selections ? <Text style={rStyles.itemAltName}>{item.selections}</Text> : null}
+          {item.selections ? <Text style={rStyles.itemSelections}>{item.selections}</Text> : null}
         </View>
       ))}
     </View>
@@ -184,22 +228,22 @@ function DetailedItems({ items, settings, cur }: { items: ReceiptData['items']; 
   return (
     <View>
       <View style={rStyles.detailedHeader}>
-        <Text style={[rStyles.detailedHeaderText, { width: 28 }]}>Qty</Text>
+        <Text style={[rStyles.detailedHeaderText, { width: 28 * rStyles.layoutScale }]}>Qty</Text>
         <Text style={[rStyles.detailedHeaderText, { flex: 1 }]}>Item</Text>
-        <Text style={[rStyles.detailedHeaderText, { width: 56, textAlign: 'right' }]}>Rate</Text>
-        <Text style={[rStyles.detailedHeaderText, { width: 64, textAlign: 'right' }]}>Amt</Text>
+        <Text style={[rStyles.detailedHeaderText, { width: 56 * rStyles.layoutScale, textAlign: 'right' }]}>Rate</Text>
+        <Text style={[rStyles.detailedHeaderText, { width: 64 * rStyles.layoutScale, textAlign: 'right' }]}>Amt</Text>
       </View>
       <Dashes />
       {items.map((item, i) => (
         <View key={i} style={rStyles.detailedRow}>
-          <Text style={{ width: 28, fontSize: 13 * fs, color: Colors.text }}>{item.qty}</Text>
+          <Text style={{ width: 28 * rStyles.layoutScale, fontSize: 13 * fs, color: '#000' }}>{item.qty}</Text>
           <View style={{ flex: 1 }}>
             <Text style={rStyles.detailedName} numberOfLines={2}>{item.name}</Text>
             {settings.showAlternateName && item.alternateName ? <Text style={rStyles.detailedAlt}>{item.alternateName}</Text> : null}
-            {item.selections ? <Text style={rStyles.detailedAlt}>{item.selections}</Text> : null}
+            {item.selections ? <Text style={rStyles.itemSelections}>{item.selections}</Text> : null}
           </View>
-          <Text style={{ width: 56, fontSize: 13 * fs, color: Colors.textLight, textAlign: 'right' }}>{item.price.toFixed(2)}</Text>
-          <Text style={{ width: 64, fontSize: 13 * fs, fontWeight: '700', color: Colors.text, textAlign: 'right' }}>{(item.qty * item.price).toFixed(2)}</Text>
+          <Text style={{ width: 56 * rStyles.layoutScale, fontSize: 13 * fs, color: '#000', textAlign: 'right' }}>{item.price.toFixed(2)}</Text>
+          <Text style={{ width: 64 * rStyles.layoutScale, fontSize: 13 * fs, fontWeight: '700', color: '#000', textAlign: 'right' }}>{(item.qty * item.price).toFixed(2)}</Text>
         </View>
       ))}
     </View>
@@ -210,7 +254,7 @@ function TotalRow({ label, value, bold, large, valueColor }: { label: string; va
   const fs = rStyles.fontScale;
   return (
     <View style={rStyles.totalRow}>
-      <Text style={[rStyles.totalLabel, bold && { fontWeight: '800', fontSize: (large ? 16 : 14) * fs, color: Colors.text }]}>{label}</Text>
+      <Text style={[rStyles.totalLabel, bold && { fontWeight: '800', fontSize: (large ? 16 : 14) * fs }]}>{label}</Text>
       <Text style={[rStyles.totalValue, bold && { fontWeight: '900', fontSize: (large ? 17 : 14) * fs }, valueColor ? { color: valueColor } : {}]}>{value}</Text>
     </View>
   );
@@ -219,44 +263,49 @@ function bilabel(en: string, ar: string, bilingual: boolean) {
   return bilingual ? `${en} / ${ar}` : en;
 }
 
-const createReceiptStyles = (fs: number) => ({
+// All receipt text is pure black: Image Canvas prints a 1-bit image, where
+// grey/coloured text thins out or vanishes.
+const createReceiptStyles = (fs: number, layoutScale = 1) => ({
   fontScale: fs,
+  layoutScale,
   ...StyleSheet.create({
     root: { gap: 0 },
     storeHeader: { alignItems: 'center', paddingVertical: 8, gap: 3 },
     logoPlaceholder: { width: 52 * fs, height: 52 * fs, borderRadius: 26 * fs, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
     logoText: { fontSize: 22 * fs, fontWeight: '900', color: '#fff' },
-    logoImage: { width: 52 * fs, height: 52 * fs, borderRadius: 8, marginBottom: 6 },
+    // Wide box: most store logos are wordmarks, which a square box shrank to a sliver.
+    logoImage: { width: 170 * fs, height: 85 * fs, marginBottom: 6 },
     storeName: { fontSize: 17 * fs, fontWeight: '800', color: '#000', textAlign: 'center' },
-    storeMeta: { fontSize: 13 * fs, color: '#333', textAlign: 'center' },
-    divider: { height: 1, backgroundColor: '#555', marginVertical: 8 },
+    storeMeta: { fontSize: 13 * fs, color: '#000', textAlign: 'center' },
+    divider: { height: 1, backgroundColor: '#000', marginVertical: 8 },
     heading: { fontSize: 15 * fs, fontWeight: '800', color: '#000', textAlign: 'center', letterSpacing: 1 },
     orderNumber: { fontSize: 36 * fs, fontWeight: '900', color: '#000', textAlign: 'center', letterSpacing: 2, marginVertical: 6 },
     metaBox: { gap: 3, marginVertical: 4 },
     metaRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 1 },
-    metaLabel: { fontSize: 12 * fs, color: '#444', fontWeight: '600', flex: 1 },
+    metaLabel: { fontSize: 12 * fs, color: '#000', fontWeight: '600', flex: 1 },
     metaValue: { fontSize: 12 * fs, color: '#000', fontWeight: '700', flex: 1.4, textAlign: 'right' },
     itemRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 7 },
     itemName: { fontSize: 13 * fs, color: '#000', fontWeight: '600', flex: 1, paddingRight: 6 },
     itemAmt: { fontSize: 13 * fs, color: '#000', fontWeight: '700', minWidth: 70, textAlign: 'right' },
-    itemAltName: { fontSize: 11 * fs, color: '#555', marginLeft: 12, marginBottom: 7 },
+    itemAltName: { fontSize: 15 * fs, color: '#000', fontWeight: '700', marginLeft: 12, marginBottom: 7 },
+    itemSelections: { fontSize: 12 * fs, color: '#000', marginLeft: 12, marginBottom: 7 },
     detailedHeader: { flexDirection: 'row', paddingBottom: 2 },
     detailedHeaderText: { fontSize: 12 * fs, fontWeight: '800', color: '#000' },
     detailedRow: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 7, gap: 0 },
     detailedName: { fontSize: 13 * fs, color: '#000', fontWeight: '600' },
-    detailedAlt: { fontSize: 11 * fs, color: '#555', marginBottom: 7 },
+    detailedAlt: { fontSize: 15 * fs, color: '#000', fontWeight: '700', marginBottom: 7 },
     totals: { gap: 2, marginVertical: 4 },
     totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
-    totalLabel: { fontSize: 13 * fs, color: '#333', fontWeight: '500', flex: 1 },
+    totalLabel: { fontSize: 13 * fs, color: '#000', fontWeight: '600', flex: 1 },
     totalValue: { fontSize: 13 * fs, color: '#000', fontWeight: '700', textAlign: 'right' },
     noteBox: { backgroundColor: '#f9f9f9', borderRadius: 4, borderWidth: 1, borderColor: '#ddd', borderStyle: 'dashed', padding: 6, marginTop: 4 },
     qrBox: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
     noteLabel: { fontSize: 12 * fs, fontWeight: '800', color: '#000' },
-    noteText: { fontSize: 12 * fs, color: '#333', marginTop: 2 },
+    noteText: { fontSize: 12 * fs, color: '#000', marginTop: 2 },
     footer: { alignItems: 'center', gap: 3, paddingTop: 4 },
     footerBold: { fontSize: 14 * fs, fontWeight: '800', color: '#000', textAlign: 'center' },
-    footerSmall: { fontSize: 12 * fs, color: '#444', textAlign: 'center' },
-    poweredBy: { fontSize: 13 * fs, color: '#999', marginTop: 4, textAlign: 'center' },
+    footerSmall: { fontSize: 12 * fs, color: '#000', textAlign: 'center' },
+    poweredBy: { fontSize: 13 * fs, color: '#000', marginTop: 4, textAlign: 'center' },
   }),
 });
 

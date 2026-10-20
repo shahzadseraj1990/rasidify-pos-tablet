@@ -9,7 +9,7 @@ import { useAuthStore } from '../store/authStore';
 import { deviceService } from '../services/deviceService';
 import { Colors } from '../utils/colors';
 import Icon from '../components/Icon';
-import LogoDarkBg from '../components/LogoDarkBg';
+import RasidifyLogo from '../components/RasidifyLogo';
 import { applyDevBypass } from '../utils/devBypass';
 
 const CODE_LENGTH = 8;
@@ -97,7 +97,7 @@ export default function DeviceAuthenticateScreen({ navigation }: Props) {
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
-          <LogoDarkBg width={150} />
+          <RasidifyLogo width={150} variant="onDark" />
         </View>
 
         <Animated.View style={[styles.card, { transform: [{ translateX: shakeAnim }] }]}>

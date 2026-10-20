@@ -156,10 +156,14 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
     const missing: string[] = [];
     if (config.variants.length > 0 && variantID == null) missing.push('Variant');
     for (const g of config.modifierGroups) {
+      // A "required" group with no options can never be satisfied — skip it,
+      // or Add to Cart stays disabled forever (seen on subscription products).
+      if (!config.modifiers.some(m => m.modifierGroupID === g.modifierGroupID)) continue;
       const count = modifierSel.get(g.modifierGroupID)?.size ?? 0;
       if ((g.isRequired || g.minSelect > 0) && count < Math.max(g.minSelect, g.isRequired ? 1 : 0)) missing.push(g.name);
     }
     for (const g of config.comboGroups) {
+      if (!config.comboItems.some(ci => ci.comboGroupID === g.comboGroupID)) continue; // no options
       const count = comboSel.get(g.comboGroupID)?.size ?? 0;
       if (count < Math.max(g.minSelect, 1)) missing.push(g.name);
     }
@@ -168,6 +172,7 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
       const comboItem = config.comboItems.find(ci => ci.itemProductID === itemID && selectedComboItemIDs.has(ci.comboGroupItemID));
       if (!comboItem) continue; // this item's slot isn't currently selected
       for (const g of cfg.modifierGroups) {
+        if (!cfg.modifiers.some(m => m.modifierGroupID === g.modifierGroupID)) continue; // no options
         const count = nestedSel.get(nestedKey(comboItem.comboGroupItemID, g.modifierGroupID))?.size ?? 0;
         if ((g.isRequired || g.minSelect > 0) && count < Math.max(g.minSelect, g.isRequired ? 1 : 0)) missing.push(`${comboItem.itemProductName} — ${g.name}`);
       }
@@ -247,7 +252,7 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
                   </Group>
                 )}
 
-                {config.modifierGroups.map(g => (
+                {config.modifierGroups.filter(g => config.modifiers.some(m => m.modifierGroupID === g.modifierGroupID)).map(g => (
                   <Group key={g.modifierGroupID} title={g.name} required={g.isRequired}>
                     {config.modifiers.filter(m => m.modifierGroupID === g.modifierGroupID).map(m => (
                       <Option
@@ -263,6 +268,7 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
 
                 {config.comboGroups.map(g => {
                   const items = config.comboItems.filter(ci => ci.comboGroupID === g.comboGroupID);
+                  if (items.length === 0) return null;
                   return (
                     <Group key={g.comboGroupID} title={g.name} required>
                       {items.map(ci => {
@@ -278,7 +284,7 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
                             />
                             {picked && nestedCfg && (
                               <View style={styles.nested}>
-                                {nestedCfg.modifierGroups.map(ng => (
+                                {nestedCfg.modifierGroups.filter(ng => nestedCfg.modifiers.some(m => m.modifierGroupID === ng.modifierGroupID)).map(ng => (
                                   <Group key={ng.modifierGroupID} title={ng.name} required={ng.isRequired} compact>
                                     {nestedCfg.modifiers.filter(m => m.modifierGroupID === ng.modifierGroupID).map(m => {
                                       const k = nestedKey(ci.comboGroupItemID, ng.modifierGroupID);
