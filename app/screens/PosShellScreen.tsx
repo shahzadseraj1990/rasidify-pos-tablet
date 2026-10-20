@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +17,9 @@ import { flushCloudOutbox } from '../services/kitchenTicketService';
 import { buildZReportEscPos, buildZReportHtml, ZReportInput } from '../services/zReport';
 import { printReceipt } from '../services/PrinterService';
 import { usePrinterStore } from '../store/printerStore';
+import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
+import { buildImageCanvasReceipt } from '../services/escpos/ImageCanvasBuilder';
+import { ZReportPrintCapture } from '../components/receipt/ZReportPaper';
 import { useToastStore } from '../store/toastStore';
 import { PosShiftSummary, PaymentBreakdown } from '../types';
 
@@ -54,6 +57,10 @@ export default function PosShellScreen({ navigation }: Props) {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const printer = usePrinterStore();
   const toast = useToastStore(s => s.show);
+  // Image Canvas mode: the Z report is mounted off-screen and captured
+  // (like the checkout receipt) before this screen is replaced.
+  const [zPrint, setZPrint] = useState<ZReportInput | null>(null);
+  const zShotRef = useRef<any>(null);
 
   const clearAuth = useAuthStore(s => s.clearAuth);
   const user = useAuthStore(s => s.user);
@@ -141,7 +148,17 @@ export default function PosShellScreen({ navigation }: Props) {
         zReportData: buildZReportHtml(z),
       });
       if (printer.isConfigured) {
-        printReceipt(buildZReportEscPos(z, printer.paperWidth), printer)
+        let content: string;
+        try {
+          if (useReceiptSettingsStore.getState().printMode !== 'image') throw null;
+          setZPrint(z);
+          await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))));
+          content = await buildImageCanvasReceipt(zShotRef, printer.paperWidth);
+        } catch {
+          // ESC/POS Text mode, or the capture failed — still print the Z report.
+          content = buildZReportEscPos(z, printer.paperWidth);
+        }
+        printReceipt(content, printer)
           .then(r => toast('Shift closed', r.success ? 'success' : 'error', r.success ? 'Z report printed' : `Z report not printed: ${r.error}`))
           .catch(() => toast('Shift closed', 'error', 'Z report not printed'));
       } else {
@@ -250,6 +267,7 @@ export default function PosShellScreen({ navigation }: Props) {
           </View>
         </View>
       </Modal>
+      {zPrint && <ZReportPrintCapture ref={zShotRef} z={zPrint} paperWidth={printer.paperWidth} />}
     </View>
   );
 }

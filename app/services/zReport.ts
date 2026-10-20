@@ -24,16 +24,16 @@ export interface ZReportInput {
   closedAt?: Date;
 }
 
-const fmt = (n: number | null | undefined) =>
+export const fmt = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtDateTime = (d: Date) =>
+export const fmtDateTime = (d: Date) =>
   d.toLocaleString('en-SA', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const esc = (s: string | null | undefined) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const cashSales = (payments: PaymentBreakdown[]) =>
+export const cashSales = (payments: PaymentBreakdown[]) =>
   payments.find(p => /cash|نقد/i.test(p.paymentMethod ?? ''))?.total ?? 0;
 
 /** Port of the web POS ReportPrinterService.buildHtml({ type: 'Z' }). */

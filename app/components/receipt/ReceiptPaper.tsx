@@ -25,10 +25,10 @@ const resolveLogoUri = (url?: string): string | undefined => {
 };
 
 // Print head widths in dots (203 dpi): 58mm → 384, 80mm → 576.
-const PRINT_DOTS: Record<58 | 80, number> = { 58: 384, 80: 576 };
+export const PRINT_DOTS: Record<58 | 80, number> = { 58: 384, 80: 576 };
 // Layout width (dp) the receipt's sizes were tuned for (the old 360-wide
 // capture minus its 20dp padding); the print copy scales from it.
-const PRINT_REF_WIDTH = 320;
+export const PRINT_REF_WIDTH = 320;
 
 /**
  * Off-screen, print-only receipt for "Image Canvas" mode, laid out at exactly
