@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Modal } from 'react-native';
-import { Colors } from '../utils/colors';
-import Icon from './Icon';
+import { View, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { C, F, R, S, T, palette } from '../theme/tokens';
+import { Txt, Glyph, Button, IconButton } from './ui';
 import Money from './Money';
 import { productCatalogService } from '../services/productCatalogService';
 import { buildSelectionSummary } from '../utils/selectionTree';
@@ -9,6 +9,8 @@ import { Product, ProductPosConfig, ComboGroupItem, LineItemSelection } from '..
 
 export interface ProductOptionsResult {
   computedPrice: number;
+  /** Quantity chosen in the popup's stepper (design: "Quantity − 1 +"). */
+  quantity: number;
   selectionSummary: string;
   lineSelections: LineItemSelection[];
 }
@@ -26,7 +28,7 @@ interface Props {
 // possible) doesn't collide.
 const nestedKey = (comboGroupItemID: number, modifierGroupID: number) => `${comboGroupItemID}:${modifierGroupID}`;
 
-interface PickedExtra { label: string; price: number; indent?: boolean }
+interface PickedExtra { group: string; label: string; price: number; indent?: boolean }
 
 export default function ProductOptionsModal({ visible, product, currency, onClose, onConfirm }: Props) {
   const [loading, setLoading] = useState(false);
@@ -39,6 +41,7 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
   const [modifierSel, setModifierSel] = useState<Map<number, Set<number>>>(new Map());
   const [comboSel, setComboSel] = useState<Map<number, Set<number>>>(new Map());
   const [nestedSel, setNestedSel] = useState<Map<string, Set<number>>>(new Map());
+  const [qty, setQty] = useState(1);
 
   useEffect(() => {
     if (!visible || !product) return;
@@ -49,6 +52,7 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
     setModifierSel(new Map());
     setComboSel(new Map());
     setNestedSel(new Map());
+    setQty(1);
 
     (async () => {
       try {
@@ -117,25 +121,25 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
     const out: PickedExtra[] = [];
     if (variantID != null) {
       const v = config.variants.find(v => v.variantID === variantID);
-      if (v) out.push({ label: v.name, price: v.price - config.product.price });
+      if (v) out.push({ group: 'Variant', label: v.name, price: v.price - config.product.price });
     }
     for (const g of config.modifierGroups) {
       for (const id of modifierSel.get(g.modifierGroupID) ?? []) {
         const m = config.modifiers.find(m => m.modifierID === id);
-        if (m) out.push({ label: m.name, price: m.price });
+        if (m) out.push({ group: g.name, label: m.name, price: m.price });
       }
     }
     for (const g of config.comboGroups) {
       for (const id of comboSel.get(g.comboGroupID) ?? []) {
         const ci = config.comboItems.find(ci => ci.comboGroupItemID === id);
         if (!ci) continue;
-        out.push({ label: ci.itemProductName, price: ci.additionalPrice });
+        out.push({ group: g.name, label: ci.itemProductName, price: ci.additionalPrice });
         const nestedCfg = nestedConfigs.get(ci.itemProductID);
         if (!nestedCfg) continue;
         for (const ng of nestedCfg.modifierGroups) {
           for (const nid of nestedSel.get(nestedKey(ci.comboGroupItemID, ng.modifierGroupID)) ?? []) {
             const nm = nestedCfg.modifiers.find(m => m.modifierID === nid);
-            if (nm) out.push({ label: `${ng.name}: ${nm.name}`, price: nm.price, indent: true });
+            if (nm) out.push({ group: ng.name, label: nm.name, price: nm.price, indent: true });
           }
         }
       }
@@ -212,270 +216,242 @@ export default function ProductOptionsModal({ visible, product, currency, onClos
       }
     }
 
-    onConfirm({ computedPrice, selectionSummary: buildSelectionSummary(lineSelections), lineSelections });
+    onConfirm({ computedPrice, quantity: qty, selectionSummary: buildSelectionSummary(lineSelections), lineSelections });
   };
 
   if (!product) return null;
 
+  const kind = product.type === 'CB' ? 'Combo' : product.type === 'BN' ? 'Bundle' : 'Options';
+  const fmtExtra = (p: number) => (p === 0 ? 'Included' : `${p > 0 ? '+' : '−'}${Math.abs(p).toFixed(2)}`);
+  const rule = (required: boolean, max: number) =>
+    required
+      ? (max > 1 ? `Required, choose up to ${max}` : 'Required, choose 1')
+      : (max > 1 ? `Optional, up to ${max}` : max === 1 ? 'Optional, choose 1' : 'Optional, any number');
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title} numberOfLines={1}>{product.name}</Text>
-              <Text style={styles.subtitle}>Customize this item</Text>
+        <View style={styles.sheet}>
+          <View style={styles.head}>
+            <View style={styles.flex}>
+              <Txt variant="caption" weight="semibold" color={C.brand}>{kind}</Txt>
+              <Txt variant="h1" numberOfLines={1}>{product.name}</Txt>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="times" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
+            {!loading && config ? (
+              missingRequirements.length === 0 ? (
+                <View style={[styles.chip, styles.chipOk]}>
+                  <Glyph name="check" size={16} color={C.brand} strokeWidth={2.6} />
+                  <Txt variant="caption" weight="semibold" color={C.brand}>All required choices made</Txt>
+                </View>
+              ) : (
+                <View style={[styles.chip, styles.chipDue]}>
+                  <Txt variant="caption" weight="semibold" color={C.warningText} numberOfLines={1}>
+                    Choose {missingRequirements.slice(0, 2).join(', ')}{missingRequirements.length > 2 ? '…' : ''}
+                  </Txt>
+                </View>
+              )
+            ) : null}
+            <IconButton icon="close" variant="outline" size={52} onPress={onClose} />
           </View>
 
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator color={Colors.primary} />
-            </View>
-          ) : config ? (
+          {loading || !config ? (
+            <View style={styles.loading}><ActivityIndicator color={C.brand} /></View>
+          ) : (
             <View style={styles.body}>
-              <ScrollView style={styles.left} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.flex} contentContainerStyle={styles.groups} showsVerticalScrollIndicator={false}>
                 {config.variants.length > 0 && (
-                  <Group title="Variant" required>
+                  <GroupRow title="Variant" rule={rule(true, 1)}>
                     {config.variants.map(v => (
-                      <Option
+                      <Choice
                         key={v.variantID}
                         label={v.name}
-                        price={v.price - config.product.price}
+                        price={fmtExtra(v.price - config.product.price)}
                         picked={variantID === v.variantID}
+                        multi={false}
                         onPress={() => setVariantID(prev => (prev === v.variantID ? null : v.variantID))}
                       />
                     ))}
-                  </Group>
+                  </GroupRow>
                 )}
 
                 {config.modifierGroups.filter(g => config.modifiers.some(m => m.modifierGroupID === g.modifierGroupID)).map(g => (
-                  <Group key={g.modifierGroupID} title={g.name} required={g.isRequired}>
+                  <GroupRow key={g.modifierGroupID} title={g.name} rule={rule(g.isRequired || g.minSelect > 0, g.maxSelect || 1)}>
                     {config.modifiers.filter(m => m.modifierGroupID === g.modifierGroupID).map(m => (
-                      <Option
+                      <Choice
                         key={m.modifierID}
                         label={m.name}
-                        price={m.price}
+                        price={fmtExtra(m.price)}
                         picked={(modifierSel.get(g.modifierGroupID) ?? new Set()).has(m.modifierID)}
+                        multi={(g.maxSelect || 1) > 1}
                         onPress={() => toggle(modifierSel, setModifierSel, g.modifierGroupID, m.modifierID, g.maxSelect || 1)}
                       />
                     ))}
-                  </Group>
+                  </GroupRow>
                 ))}
 
                 {config.comboGroups.map(g => {
                   const items = config.comboItems.filter(ci => ci.comboGroupID === g.comboGroupID);
                   if (items.length === 0) return null;
+                  const pickedItems = items.filter(ci => (comboSel.get(g.comboGroupID) ?? new Set()).has(ci.comboGroupItemID));
                   return (
-                    <Group key={g.comboGroupID} title={g.name} required>
-                      {items.map(ci => {
-                        const picked = (comboSel.get(g.comboGroupID) ?? new Set()).has(ci.comboGroupItemID);
+                    <React.Fragment key={g.comboGroupID}>
+                      <GroupRow title={g.name} rule={rule(true, g.maxSelect || 1)}>
+                        {items.map(ci => (
+                          <Choice
+                            key={ci.comboGroupItemID}
+                            label={ci.itemProductName}
+                            price={fmtExtra(ci.additionalPrice)}
+                            picked={pickedItems.includes(ci)}
+                            multi={(g.maxSelect || 1) > 1}
+                            onPress={() => toggleCombo(g.comboGroupID, ci.comboGroupItemID, g.maxSelect || 1)}
+                          />
+                        ))}
+                      </GroupRow>
+                      {/* Options of the picked item (e.g. Fries → Size), as their own rows. */}
+                      {pickedItems.map(ci => {
                         const nestedCfg = nestedConfigs.get(ci.itemProductID);
-                        return (
-                          <View key={ci.comboGroupItemID}>
-                            <Option
-                              label={ci.itemProductName}
-                              price={ci.additionalPrice}
-                              picked={picked}
-                              onPress={() => toggleCombo(g.comboGroupID, ci.comboGroupItemID, g.maxSelect || 1)}
-                            />
-                            {picked && nestedCfg && (
-                              <View style={styles.nested}>
-                                {nestedCfg.modifierGroups.filter(ng => nestedCfg.modifiers.some(m => m.modifierGroupID === ng.modifierGroupID)).map(ng => (
-                                  <Group key={ng.modifierGroupID} title={ng.name} required={ng.isRequired} compact>
-                                    {nestedCfg.modifiers.filter(m => m.modifierGroupID === ng.modifierGroupID).map(m => {
-                                      const k = nestedKey(ci.comboGroupItemID, ng.modifierGroupID);
-                                      return (
-                                        <Option
-                                          key={m.modifierID}
-                                          label={m.name}
-                                          price={m.price}
-                                          picked={(nestedSel.get(k) ?? new Set()).has(m.modifierID)}
-                                          onPress={() => toggle(nestedSel, setNestedSel, k, m.modifierID, ng.maxSelect || 1)}
-                                        />
-                                      );
-                                    })}
-                                  </Group>
+                        if (!nestedCfg) return null;
+                        return nestedCfg.modifierGroups
+                          .filter(ng => nestedCfg.modifiers.some(m => m.modifierGroupID === ng.modifierGroupID))
+                          .map(ng => {
+                            const k = nestedKey(ci.comboGroupItemID, ng.modifierGroupID);
+                            return (
+                              <GroupRow key={k} title={ng.name} hint={ci.itemProductName} rule={rule(ng.isRequired || ng.minSelect > 0, ng.maxSelect || 1)}>
+                                {nestedCfg.modifiers.filter(m => m.modifierGroupID === ng.modifierGroupID).map(m => (
+                                  <Choice
+                                    key={m.modifierID}
+                                    label={m.name}
+                                    price={fmtExtra(m.price)}
+                                    picked={(nestedSel.get(k) ?? new Set()).has(m.modifierID)}
+                                    multi={(ng.maxSelect || 1) > 1}
+                                    onPress={() => toggle(nestedSel, setNestedSel, k, m.modifierID, ng.maxSelect || 1)}
+                                  />
                                 ))}
-                              </View>
-                            )}
-                          </View>
-                        );
+                              </GroupRow>
+                            );
+                          });
                       })}
-                    </Group>
+                    </React.Fragment>
                   );
                 })}
 
                 {config.bundleItems.length > 0 && (
-                  <Group title="Includes">
+                  <GroupRow title="What's included" rule={`${config.bundleItems.length} item${config.bundleItems.length === 1 ? '' : 's'} in this bundle`}>
                     {config.bundleItems.map(b => (
-                      <View key={b.bundleItemID} style={styles.bundleRow}>
-                        <View style={styles.bundleQtyBadge}>
-                          <Text style={styles.bundleQtyText}>{b.quantity}×</Text>
-                        </View>
-                        <Text style={styles.optionLabel}>{b.itemProductName}</Text>
+                      <View key={b.bundleItemID} style={[styles.choice, styles.bundleItem]}>
+                        <View style={styles.bundleQty}><Txt variant="caption" weight="bold" color={C.brand}>{b.quantity}×</Txt></View>
+                        <Txt variant="label" weight="semibold" numberOfLines={2} style={styles.flex}>{b.itemProductName}</Txt>
                       </View>
                     ))}
-                  </Group>
+                  </GroupRow>
                 )}
               </ScrollView>
 
-              <View style={styles.right}>
-                <Text style={styles.fieldLabel}>ITEM PRICE</Text>
-                <View style={styles.summaryBoxSmall}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel} numberOfLines={1}>{product.name}</Text>
-                    <Money amount={basePrice} currency={currency} style={styles.summaryValue} />
+              <View style={styles.summary}>
+                <Txt variant="title" weight="bold">Summary</Txt>
+                <ScrollView style={styles.summaryList} showsVerticalScrollIndicator={false}>
+                  <View style={styles.sumLine}>
+                    <Txt variant="label" weight="semibold" numberOfLines={1} style={styles.flex}>{product.name}</Txt>
+                    <Txt variant="label" weight="semibold">{basePrice.toFixed(2)}</Txt>
                   </View>
-                  {pickedExtras.length > 0 && <View style={styles.summaryDivider} />}
-                  <ScrollView style={styles.extrasScroll} showsVerticalScrollIndicator={false}>
-                    {pickedExtras.map((e, i) => (
-                      <View key={i} style={[styles.summaryRow, e.indent && styles.summaryRowIndent]}>
-                        <Text style={styles.summaryLabelMuted} numberOfLines={1}>{e.label}</Text>
-                        {e.price !== 0 && (
-                          <Text style={styles.summaryValueMuted}>{e.price > 0 ? '+' : ''}{e.price.toFixed(2)}</Text>
-                        )}
-                      </View>
-                    ))}
-                  </ScrollView>
+                  {pickedExtras.map((e, i) => (
+                    <View key={i} style={[styles.sumLine, e.indent && styles.sumIndent]}>
+                      <Txt variant="label" weight="regular" color={C.textMuted} numberOfLines={1} style={styles.flex}>
+                        {e.group} · <Txt variant="label" weight="regular">{e.label}</Txt>
+                      </Txt>
+                      <Txt variant="label" weight="regular" color={C.textMuted}>{fmtExtra(e.price)}</Txt>
+                    </View>
+                  ))}
+                  <View style={styles.sumRule} />
+                  <View style={styles.sumLine}>
+                    <Txt variant="label" weight="semibold" style={styles.flex}>Price each</Txt>
+                    <Money amount={computedPrice} currency={currency} style={styles.each} />
+                  </View>
+                </ScrollView>
+
+                <View style={styles.qtyRow}>
+                  <Txt variant="label" weight="semibold" style={styles.flex}>Quantity</Txt>
+                  <IconButton icon="minus" variant="outline" size={52} disabled={qty <= 1} onPress={() => setQty(q => Math.max(1, q - 1))} />
+                  <Txt variant="h3" weight="bold" align="center" style={styles.qtyValue}>{qty}</Txt>
+                  <IconButton icon="plus" variant="outline" size={52} onPress={() => setQty(q => q + 1)} />
                 </View>
-
-                {missingRequirements.length > 0 && (
-                  <View style={styles.requirementNotice}>
-                    <Icon name="info-circle" size={12} color={Colors.warning} />
-                    <Text style={styles.requirementNoticeText} numberOfLines={2}>
-                      Select {missingRequirements.slice(0, 2).join(', ')}{missingRequirements.length > 2 ? '…' : ''}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={{ flex: 1 }} />
-
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total</Text>
-                  <Money amount={computedPrice} currency={currency} style={styles.totalValue} />
+                  <Txt variant="title" weight="semibold">Total</Txt>
+                  <Money amount={computedPrice * qty} currency={currency} style={styles.total} />
                 </View>
-                <TouchableOpacity
-                  style={[styles.confirmBtn, !canConfirm && styles.confirmBtnDisabled]}
-                  disabled={!canConfirm}
-                  onPress={handleConfirm}
-                >
-                  <Icon name="cart-plus" size={14} color={Colors.textOnDark} />
-                  <Text style={styles.confirmBtnText}>Add to Cart</Text>
-                </TouchableOpacity>
+                <Button size="xl" label="Add to order" disabled={!canConfirm} onPress={handleConfirm} />
               </View>
             </View>
-          ) : null}
+          )}
         </View>
       </View>
     </Modal>
   );
 }
 
-function Group({ title, required, compact, children }: { title: string; required?: boolean; compact?: boolean; children: React.ReactNode }) {
+/** One option group: name + rule on the left, its choices in a 2-column grid. */
+function GroupRow({ title, hint, rule, children }: { title: string; hint?: string; rule: string; children: React.ReactNode }) {
   return (
-    <View style={[styles.group, compact && styles.groupCompact]}>
+    <View style={styles.groupRow}>
       <View style={styles.groupHead}>
-        <Text style={styles.groupTitle}>{title}</Text>
-        {required && <Text style={styles.requiredBadge}>Required</Text>}
+        {hint ? <Txt variant="small" weight="medium" color={C.brand} numberOfLines={1}>{hint}</Txt> : null}
+        <Txt variant="title" weight="semibold">{title}</Txt>
+        <Txt variant="small" weight="regular" color={C.textMuted}>{rule}</Txt>
       </View>
-      <View style={styles.groupBody}>{children}</View>
+      <View style={styles.choices}>{children}</View>
     </View>
   );
 }
 
-function Option({ label, price, picked, onPress }: { label: string; price: number; picked: boolean; onPress: () => void }) {
+/** Selectable tile: radio (single choice) or checkbox (multi), name, price. */
+function Choice({ label, price, picked, multi, onPress }: {
+  label: string; price: string; picked: boolean; multi: boolean; onPress: () => void;
+}) {
   return (
-    <TouchableOpacity style={[styles.optionRow, picked && styles.optionRowPicked]} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.dot, picked && styles.dotPicked]}>
-        {picked && <Icon name="check" size={9} color={Colors.textOnDark} />}
+    <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={[styles.choice, picked && styles.choiceOn]}>
+      <View style={[multi ? styles.box : styles.radio, picked && styles.markOn]}>
+        {picked ? <Glyph name="check" size={14} color={palette.white} strokeWidth={3} /> : null}
       </View>
-      <Text style={[styles.optionLabel, picked && styles.optionLabelPicked]} numberOfLines={1}>{label}</Text>
-      {price !== 0 && (
-        <Text style={[styles.optionPrice, picked && styles.optionLabelPicked]}>
-          {price > 0 ? '+' : ''}{price.toFixed(2)}
-        </Text>
-      )}
+      <Txt variant="label" weight="semibold" numberOfLines={2} style={styles.flex}>{label}</Txt>
+      <Txt variant="caption" weight="semibold" color={price === 'Included' ? C.textMuted : C.brand}>{price}</Txt>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: Colors.overlay, alignItems: 'center', justifyContent: 'center' },
-  // Same footprint as the checkout/payment card (paymentCard in SellScreen)
-  // so switching between the two modals feels like one consistent app,
-  // not two different UI systems.
-  card: {
-    width: 820, maxWidth: '94%', minHeight: 620, maxHeight: '90%', backgroundColor: Colors.surface,
-    borderRadius: 24, overflow: 'hidden',
+  flex: { flex: 1, minWidth: 0 },
+  overlay: { flex: 1, backgroundColor: C.overlay, alignItems: 'center', justifyContent: 'center' },
+  sheet: { width: '82%', maxWidth: 1100, height: '92%', maxHeight: 780, borderRadius: R.sheet, backgroundColor: C.surface, overflow: 'hidden' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: S.lg, paddingHorizontal: 28, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 40, borderRadius: R.pill, maxWidth: 360 },
+  chipOk: { backgroundColor: C.brandTint },
+  chipDue: { backgroundColor: C.warningBg },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  body: { flex: 1, flexDirection: 'row' },
+
+  groups: { paddingHorizontal: 28, paddingTop: 8, paddingBottom: 24 },
+  groupRow: { flexDirection: 'row', gap: S.lg, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.divider },
+  groupHead: { width: 170, paddingTop: 10 },
+  choices: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  choice: {
+    width: '48.8%', minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: R.lg, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
   },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 28, paddingVertical: 22, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  title: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  loadingBox: { flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center' },
+  choiceOn: { borderColor: C.brand, backgroundColor: C.brandTint },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: palette.subtle, alignItems: 'center', justifyContent: 'center' },
+  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: palette.subtle, alignItems: 'center', justifyContent: 'center' },
+  markOn: { backgroundColor: C.brand, borderColor: C.brand },
+  bundleItem: { backgroundColor: C.bg },
+  bundleQty: { minWidth: 34, height: 28, paddingHorizontal: 6, borderRadius: R.sm, backgroundColor: C.brandTint, alignItems: 'center', justifyContent: 'center' },
 
-  body: { flex: 1, flexDirection: 'row', padding: 28, gap: 32 },
-  left: { flex: 1.3 },
-  right: { flex: 1 },
-
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 },
-
-  group: { marginBottom: 20 },
-  groupCompact: { marginBottom: 8, marginTop: 4 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  groupTitle: { fontSize: 14, fontWeight: '800', color: Colors.text },
-  requiredBadge: {
-    fontSize: 10, fontWeight: '700', color: Colors.warning, backgroundColor: Colors.warningBg,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', textTransform: 'uppercase', letterSpacing: 0.4,
-  },
-  groupBody: { gap: 8 },
-  nested: { marginLeft: 30, marginTop: 6, marginBottom: 4, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: Colors.border },
-
-  optionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14,
-    borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.background,
-  },
-  optionRowPicked: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  dot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface },
-  dotPicked: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  optionLabel: { fontSize: 14, fontWeight: '600', color: Colors.text, flex: 1 },
-  optionLabelPicked: { fontWeight: '800', color: Colors.accent },
-  optionPrice: { fontSize: 13, fontWeight: '700', color: Colors.textMuted, fontVariant: ['tabular-nums'] },
-
-  bundleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  bundleQtyBadge: { backgroundColor: Colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  bundleQtyText: { fontSize: 12, fontWeight: '800', color: Colors.textLight },
-
-  summaryBoxSmall: { backgroundColor: Colors.background, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border },
-  summaryDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 10 },
-  extrasScroll: { maxHeight: 220 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 5, gap: 8 },
-  summaryRowIndent: { paddingLeft: 14 },
-  summaryLabel: { fontSize: 14, fontWeight: '800', color: Colors.text, flex: 1 },
-  summaryValue: { fontSize: 14, fontWeight: '800', color: Colors.text },
-  summaryLabelMuted: { fontSize: 12.5, fontWeight: '600', color: Colors.textLight, flex: 1 },
-  summaryValueMuted: { fontSize: 12.5, fontWeight: '700', color: Colors.textLight },
-
-  requirementNotice: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: Colors.warningBg,
-    borderRadius: 12, padding: 12, marginTop: 14,
-  },
-  requirementNoticeText: { flex: 1, fontSize: 12, fontWeight: '600', color: '#8A5A00', lineHeight: 16 },
-
-  totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 12 },
-  totalLabel: { fontSize: 13, fontWeight: '700', color: Colors.textLight, textTransform: 'uppercase', letterSpacing: 0.6 },
-  totalValue: { fontSize: 26, fontWeight: '900', color: Colors.text },
-
-  confirmBtn: {
-    height: 56, borderRadius: 14, backgroundColor: Colors.primary,
-    flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center',
-  },
-  confirmBtnDisabled: { backgroundColor: Colors.border },
-  confirmBtnText: { color: Colors.textOnDark, fontWeight: '800', fontSize: 15 },
+  summary: { width: 340, padding: 24, gap: 14, backgroundColor: C.brandSoft, borderLeftWidth: 1, borderLeftColor: C.border },
+  summaryList: { flex: 1 },
+  sumLine: { flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingVertical: 5 },
+  sumIndent: { paddingLeft: 12 },
+  sumRule: { height: 1, backgroundColor: C.border, marginVertical: 10 },
+  each: { fontSize: T.label, fontFamily: F.bold, color: C.text },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  qtyValue: { minWidth: 36 },
+  totalRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  total: { fontSize: 30, fontFamily: F.bold, color: C.text },
 });

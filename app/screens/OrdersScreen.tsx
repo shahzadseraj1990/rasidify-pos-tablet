@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
+import { C, F, palette, Tone } from '../theme/tokens';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  ActivityIndicator, ScrollView, RefreshControl,
-} from 'react-native';
-import { Colors } from '../utils/colors';
-import Icon from '../components/Icon';
+  Txt, Glyph, orderTypeGlyph, Button, IconButton, Pill, Avatar, Card, PageHeader, EmptyState,
+  Field, Dropdown, Segmented, UnderlineTabs, TableHead, Cell, TableRow, ColSpec,
+} from '../components/ui';
 import Money from '../components/Money';
 import KitchenBadge from '../components/KitchenBadge';
 import KitchenTicketsPanel from '../components/KitchenTicketsPanel';
@@ -56,18 +56,29 @@ const STATUS_LABELS: Record<number, string> = {
   100: 'Draft', 105: 'Paid', 106: 'Unpaid', 107: 'Partial',
   108: 'Overdue', 109: 'Cancelled', 110: 'Refunded', 20: 'Held',
 };
-const STATUS_COLORS: Record<number, { bg: string; text: string }> = {
-  105: { bg: '#D1FAE5', text: '#059669' },
-  106: { bg: '#FEE2E2', text: '#DC2626' },
-  107: { bg: '#FEF3C7', text: '#D97706' },
-  109: { bg: '#F3F4F6', text: '#6B7280' },
-  110: { bg: '#EDE9FE', text: '#7C3AED' },
-  20: { bg: '#FEF3C7', text: '#B45309' },
+const STATUS_TONES: Record<number, Tone> = {
+  105: 'info', 106: 'warning', 107: 'brand', 108: 'danger', 109: 'neutral', 110: 'neutral', 20: 'warning',
+};
+const statusTone = (id: number): Tone => STATUS_TONES[id] ?? 'neutral';
+
+// Status tabs over the loaded orders (the list API is not filtered by status).
+type StatusTab = 'all' | 'unpaid' | 'paid' | 'refunded';
+const TAB_MATCH: Record<StatusTab, (id: number) => boolean> = {
+  all: () => true,
+  unpaid: id => id === 106 || id === 107 || id === 20 || id === 108,
+  paid: id => id === 105,
+  refunded: id => id === 110,
 };
 
-function statusColor(id: number) {
-  return STATUS_COLORS[id] ?? { bg: '#F3F4F6', text: '#6B7280' };
-}
+const COLS: Record<'order' | 'customer' | 'type' | 'payment' | 'total', ColSpec> = {
+  order: { label: 'Order', flex: 1 },
+  customer: { label: 'Customer', flex: 2.4 },
+  type: { label: 'Type', flex: 1.6 },
+  payment: { label: 'Payment', flex: 1.8 },
+  total: { label: 'Total', flex: 1.1, align: 'right' },
+};
+
+const fmtTime = (d: Date) => isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 function parseOrderDate(value: unknown): Date {
   if (value instanceof Date) return value;
@@ -295,194 +306,155 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
     onResumeOrder();
   }
 
+  const [tab, setTab] = useState<StatusTab>('all');
+  const visible = useMemo(() => orders.filter(o => TAB_MATCH[tab](o.statusID)), [orders, tab]);
+  const tabCount = (t: StatusTab) => orders.filter(o => TAB_MATCH[t](o.statusID)).length;
+  const salesTotal = useMemo(() => orders.filter(o => o.statusID === 105).reduce((sum, o) => sum + Number(o.totalAmount ?? 0), 0), [orders]);
+  const typeOptions = useMemo(() => [{ key: 0, label: 'All types' }, ...orderTypes.map((t: any) => ({ key: t.orderTypeID as number, label: t.name as string }))], [orderTypes]);
+
   return (
     <View style={styles.root}>
       <View style={styles.left}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Orders</Text>
-          <View style={styles.headerRight}>
-            <Text style={styles.foundText}>{totalCount} orders found</Text>
-            <TouchableOpacity style={styles.allShiftsBtn} onPress={toggleAllShifts}>
-              <Text style={[styles.allShiftsText, showAllShifts && styles.allShiftsActive]}>
-                {showAllShifts ? 'All Shifts' : 'This Shift'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.searchRow}>
-          <View style={styles.searchWrap}>
-            <Icon name="search" size={13} color={Colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search by order #, customer..."
-              placeholderTextColor={Colors.textMuted}
-              value={search}
-              onChangeText={onSearch}
+        <PageHeader
+          title="Orders"
+          subtitle={`${showAllShifts ? 'All shifts' : `Shift #${shiftID}`} · ${totalCount} order${totalCount === 1 ? '' : 's'} · ${currency} ${salesTotal.toFixed(2)} paid`}
+          right={<>
+            <Field icon="search" height={48} containerStyle={styles.search} placeholder="Order #, customer or table" value={search} onChangeText={onSearch} />
+            <Dropdown icon="filter" options={typeOptions} value={filterType} onChange={onFilterType} />
+            <Segmented
+              options={[{ key: 'shift', label: 'This shift' }, { key: 'all', label: 'All shifts' }]}
+              value={showAllShifts ? 'all' : 'shift'}
+              onChange={k => { if ((k === 'all') !== showAllShifts) toggleAllShifts(); }}
             />
-          </View>
-          <TouchableOpacity style={[styles.filterPill, filterType === 0 && styles.filterPillActive]} onPress={() => onFilterType(0)}>
-            <Text style={[styles.filterPillText, filterType === 0 && styles.filterPillTextActive]}>All</Text>
-          </TouchableOpacity>
-          {orderTypes.map((ot: any) => (
-            <TouchableOpacity key={ot.orderTypeID} style={[styles.filterPill, filterType === ot.orderTypeID && styles.filterPillActive]} onPress={() => onFilterType(ot.orderTypeID)}>
-              <Text style={[styles.filterPillText, filterType === ot.orderTypeID && styles.filterPillTextActive]}>{ot.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+          </>}
+        />
 
-        {loading && !refreshing ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
-        ) : (
-          <FlatList
-            data={orders}
-            keyExtractor={item => String(item.invoiceID)}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-            contentContainerStyle={{ paddingBottom: 24 }}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Icon name="clipboard-list" size={28} color={Colors.textMuted} />
-                <Text style={styles.emptyText}>No orders found</Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const sc = statusColor(item.statusID);
-              const active = selected?.invoiceID === item.invoiceID;
-              return (
-                <TouchableOpacity style={[styles.orderRow, active && styles.orderRowActive]} onPress={() => openDetail(item)} activeOpacity={0.7}>
-                  <Text style={styles.orderNum}>{orderNum(item)}</Text>
-                  <Text style={styles.custName} numberOfLines={1}>{custName(item)}</Text>
-                  {item.orderType ? (
-                    <View style={styles.typeChip}><Text style={styles.typeChipText}>{item.orderType}</Text></View>
-                  ) : null}
-                  {item.tableNo ? (
-                    <View style={styles.tableChip}><Text style={styles.tableChipText}>Table {item.tableNo}</Text></View>
-                  ) : null}
-                  <View style={{ flex: 1 }} />
-                  {item.paymentMethodTitle ? (
-                    <View style={styles.methodChip}><Text style={styles.methodChipText}>{item.paymentMethodTitle}</Text></View>
-                  ) : null}
-                  <KitchenBadge invoiceId={item.invoiceID} />
-                  <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
-                    <Text style={[styles.statusBadgeText, { color: sc.text }]}>{STATUS_LABELS[item.statusID] ?? 'Unknown'}</Text>
-                  </View>
-                  <Money amount={item.totalAmount} currency={currency} style={styles.amount} />
-                </TouchableOpacity>
-              );
-            }}
-            ListFooterComponent={
-              page < totalPages ? (
-                <TouchableOpacity style={styles.loadMoreBtn} onPress={() => loadOrders(page + 1, true)}>
-                  <Text style={styles.loadMoreText}>Load More</Text>
-                </TouchableOpacity>
-              ) : null
-            }
+        <Card padded={false} style={styles.tableCard}>
+          <UnderlineTabs
+            tabs={[
+              { key: 'all', label: 'All', count: tabCount('all') },
+              { key: 'unpaid', label: 'Unpaid', count: tabCount('unpaid') },
+              { key: 'paid', label: 'Paid', count: tabCount('paid') },
+              { key: 'refunded', label: 'Refunded', count: tabCount('refunded') },
+            ]}
+            value={tab}
+            onChange={setTab}
           />
-        )}
+          <TableHead cols={Object.values(COLS)} />
+          {loading && !refreshing ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={C.brand} />
+          ) : (
+            <FlatList
+              data={visible}
+              keyExtractor={item => String(item.invoiceID)}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}
+              initialNumToRender={12}
+              windowSize={7}
+              ListEmptyComponent={<EmptyState title="No orders match these filters." icon="orders" />}
+              renderItem={({ item }) => (
+                <OrderRow item={item} currency={currency} selected={selected?.invoiceID === item.invoiceID} onPress={openDetail} />
+              )}
+            />
+          )}
+          <View style={styles.tableFoot}>
+            <Txt variant="caption" color={C.textMuted}>Showing {orders.length} of {totalCount} orders</Txt>
+            {page < totalPages ? <Button variant="outline" size="sm" label="Load more" iconRight="chevronDown" onPress={() => loadOrders(page + 1, true)} /> : null}
+          </View>
+        </Card>
       </View>
 
-      <View style={styles.right}>
-        {!selected ? (
-          <View style={styles.emptyDetail}>
-            <Icon name="receipt" size={28} color={Colors.textMuted} />
-            <Text style={styles.emptyDetailText}>Select an order to view details</Text>
-          </View>
-        ) : (
-          <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
-            <View style={styles.detailHeader}>
-              <View>
-                <Text style={styles.detailTitle}>Order {orderNum(selected)}</Text>
-                <Text style={styles.detailSubtitle}>{fmtDateTime(parseOrderDate(selected.transactionDate))}</Text>
+      {selected ? (
+        <View style={styles.drawer}>
+          <View style={styles.drawerHead}>
+            <View style={styles.flex}>
+              <View style={styles.titleRow}>
+                <Txt variant="h1">Order {orderNum(selected)}</Txt>
+                <Pill label={STATUS_LABELS[selected.statusID] ?? 'Unknown'} tone={statusTone(selected.statusID)} />
               </View>
-              <TouchableOpacity onPress={() => setSelected(null)}>
-                <Icon name="times" size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
+              <Txt variant="caption" color={C.textMuted}>
+                {[fmtDateTime(parseOrderDate(selected.transactionDate)), selected.orderType, selected.tableNo ? `Table ${selected.tableNo}` : null].filter(Boolean).join(' · ')}
+              </Txt>
             </View>
+            <IconButton icon="close" variant="tint" onPress={() => setSelected(null)} />
+          </View>
 
-            <View style={styles.statusStrip}>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <View style={[styles.statusBadge, { backgroundColor: statusColor(selected.statusID).bg }]}>
-                  <Text style={[styles.statusBadgeText, { color: statusColor(selected.statusID).text }]}>{STATUS_LABELS[selected.statusID] ?? 'Unknown'}</Text>
-                </View>
+          <ScrollView contentContainerStyle={styles.drawerBody} showsVerticalScrollIndicator={false}>
+            <View style={styles.customerBox}>
+              <Avatar name={custName(selected)} size={40} />
+              <View style={styles.flex}>
+                <Txt variant="title">{custName(selected)}</Txt>
                 <KitchenBadge invoiceId={selected.invoiceID} />
               </View>
-              <Money amount={selected.totalAmount} currency={currency} style={styles.stripTotal} />
-            </View>
-
-            <View style={styles.infoGrid}>
-              <MetaRow label="Customer" value={custName(selected)} />
-              {selected.orderType ? <MetaRow label="Order Type" value={selected.orderType} /> : null}
-              {selected.tableNo ? <MetaRow label="Table" value={selected.tableNo} /> : null}
             </View>
 
             <KitchenTicketsPanel invoiceId={selected.invoiceID} />
 
-            <Text style={styles.sectionTitle}>Items</Text>
+            <Txt variant="micro" color={C.textMuted} style={styles.section}>ITEMS · {selected.line_items?.length ?? 0}</Txt>
             {detailLoading ? (
-              <ActivityIndicator color={Colors.primary} style={{ marginVertical: 12 }} />
+              <ActivityIndicator color={C.brand} style={{ marginVertical: 12 }} />
             ) : (selected.line_items?.length ?? 0) > 0 ? (
               selected.line_items!.map((li: any, idx: number) => (
                 <View key={idx} style={styles.lineItem}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.liName}>{li.productName ?? li.description ?? li.name ?? ''}</Text>
+                  <Txt variant="label" weight="bold" style={styles.qty}>{li.qty ?? li.quantity ?? 1}×</Txt>
+                  <View style={styles.flex}>
+                    <Txt variant="label" weight="semibold">{li.productName ?? li.description ?? li.name ?? ''}</Txt>
                     {lineModifiers(li).map((m, mi) => (
-                      <Text key={mi} style={[styles.liMod, m.child && styles.liModChild]}>
+                      <Txt key={mi} variant="small" weight="regular" color={C.textMuted} style={m.child ? styles.modChild : undefined}>
                         {m.child ? '↳ ' : '+ '}{m.label}{m.extra > 0 ? `  (+${m.extra.toFixed(2)})` : ''}
-                      </Text>
+                      </Txt>
                     ))}
                     {!!(li.kitchenNote ?? li.KitchenNote) && (
-                      <Text style={styles.liNote}>Note: {li.kitchenNote ?? li.KitchenNote}</Text>
+                      <Txt variant="small" weight="semibold" color={palette.amberInkStrong}>Note: {li.kitchenNote ?? li.KitchenNote}</Txt>
                     )}
-                    <Text style={styles.liMeta}>
-                      {li.qty ?? li.quantity ?? 1} × <Money amount={li.price ?? li.unitPrice ?? 0} currency={currency} style={styles.liMeta} />
-                    </Text>
                   </View>
-                  <Money amount={li.amount ?? li.grandTotal ?? (li.qty ?? 1) * (li.price ?? 0)} currency={currency} style={styles.liTotal} />
+                  <Money amount={li.amount ?? li.grandTotal ?? (li.qty ?? 1) * (li.price ?? 0)} currency={currency} style={styles.lineTotal} />
                 </View>
               ))
             ) : (
-              <Text style={styles.noItems}>No items</Text>
+              <Txt variant="caption" color={C.textMuted} align="center">No items</Txt>
             )}
 
-            <View style={styles.totalsBlock}>
-              <TotalRow label="Subtotal" value={<Money amount={selected.subtotal ?? selected.totalAmount} currency={currency} style={styles.totalValue} />} />
-              {selected.discount > 0 && <TotalRow label="Discount" value={<Money amount={selected.discount} currency={currency} style={[styles.totalValue, { color: Colors.danger }]} prefix="− " />} valueColor={Colors.danger} />}
-              {(selected.vatAmount ?? 0) > 0 && <TotalRow label="VAT" value={<Money amount={selected.vatAmount ?? 0} currency={currency} style={styles.totalValue} />} />}
-              <View style={styles.grandTotalRow}>
-                <Text style={styles.grandTotalLabel}>Total</Text>
-                <Money amount={selected.totalAmount} currency={currency} style={styles.grandTotalValue} />
+            <View style={styles.sums}>
+              <SumRow label="Subtotal" amount={selected.subtotal ?? selected.totalAmount} currency={currency} />
+              {selected.discount > 0 ? <SumRow label="Discount" amount={selected.discount} currency={currency} prefix="− " color={C.danger} /> : null}
+              {(selected.vatAmount ?? 0) > 0 ? <SumRow label="VAT" amount={selected.vatAmount ?? 0} currency={currency} /> : null}
+              <View style={styles.grandRow}>
+                <Txt variant="title" weight="bold">Total</Txt>
+                <Money amount={selected.totalAmount} currency={currency} style={styles.grand} />
               </View>
             </View>
 
-            {!detailLoading && (selected.line_payments?.length ?? 0) > 0 && (
-              <View style={styles.totalsBlock}>
-                <Text style={styles.sectionTitle}>Payments</Text>
-                {selected.line_payments!.map((p: any, i: number) => (
-                  <TotalRow key={i} label={p.paymentMethod} value={<Money amount={p.paymentAmount} currency={currency} style={styles.totalValue} />} />
+            {!detailLoading && (selected.line_payments?.length ?? 0) > 0 ? (
+              <View style={styles.pays}>
+                <Txt variant="micro" color={C.textMuted}>PAYMENTS</Txt>
+                {selected.line_payments!.map((pm: any, i: number) => (
+                  <View key={i} style={styles.payRow}>
+                    <View style={styles.payCheck}><Glyph name="check" size={14} color={palette.ink} strokeWidth={2.6} /></View>
+                    <Txt variant="label" style={styles.flex}>{pm.paymentMethod}</Txt>
+                    <Money amount={pm.paymentAmount} currency={currency} style={styles.payAmount} />
+                  </View>
                 ))}
               </View>
-            )}
-
-            <View style={styles.detailActions}>
-              <TouchableOpacity
-                style={[styles.reprintBtn, (detailLoading || reprinting) && { opacity: 0.5 }]}
-                onPress={() => reprintOrder(selected)}
-                disabled={detailLoading || reprinting}
-              >
-                {reprinting
-                  ? <ActivityIndicator size="small" color={Colors.text} />
-                  : <><Icon name="print" size={13} color={Colors.text} /><Text style={styles.reprintBtnText}>Reprint</Text></>}
-              </TouchableOpacity>
-              {(selected.statusID === 20 || selected.statusID === 106) && (
-                <TouchableOpacity style={[styles.resumeBtn, { flex: 1, marginTop: 0 }]} onPress={() => resumeHeldOrder(selected)}>
-                  <Icon name="play" size={13} color="#fff" />
-                  <Text style={styles.resumeBtnText}>Resume Order</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            ) : null}
           </ScrollView>
-        )}
-      </View>
+
+          <View style={styles.drawerFoot}>
+            <Button
+              variant="outline"
+              size="lg"
+              icon="printer"
+              label="Reprint"
+              loading={reprinting}
+              disabled={detailLoading}
+              onPress={() => reprintOrder(selected)}
+              style={styles.flex}
+            />
+            {(selected.statusID === 20 || selected.statusID === 106) ? (
+              <Button size="lg" label="Resume order" iconRight="arrowRight" onPress={() => resumeHeldOrder(selected)} style={styles.flex2} />
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       {/* Off-screen receipt for Image Canvas print mode (see SellScreen). */}
       {printCapture && (
@@ -495,108 +467,77 @@ export default function OrdersScreen({ onResumeOrder }: Props) {
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
+const OrderRow = React.memo(function OrderRow({ item, currency, selected, onPress }: {
+  item: PosOrder; currency: string; selected: boolean; onPress: (o: PosOrder) => void;
+}) {
+  const name = custName(item);
   return (
-    <View style={styles.metaRow}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue} numberOfLines={1}>{value}</Text>
-    </View>
+    <TableRow selected={selected} onPress={() => onPress(item)}>
+      <Cell col={COLS.order} style={styles.stack}>
+        <Txt variant="body" weight="bold">{orderNum(item)}</Txt>
+        <Txt variant="small" weight="regular" color={C.textMuted}>{fmtTime(parseOrderDate(item.transactionDate))}</Txt>
+      </Cell>
+      <Cell col={COLS.customer}>
+        <Avatar name={name} label={name.startsWith('Walk-in') ? 'W' : undefined} tone={name.startsWith('Walk-in') ? 'neutral' : undefined} />
+        <Txt variant="body" weight="semibold" numberOfLines={1} style={styles.flexShrink}>{name}</Txt>
+        <KitchenBadge invoiceId={item.invoiceID} />
+      </Cell>
+      <Cell col={COLS.type}>
+        <Glyph name={orderTypeGlyph(item.orderType)} size={18} color={C.textMuted} />
+        <Txt variant="label" weight="regular" numberOfLines={1} style={styles.flexShrink}>
+          {[item.orderType, item.tableNo].filter(Boolean).join(' · ') || '—'}
+        </Txt>
+      </Cell>
+      <Cell col={COLS.payment}>
+        <Pill label={STATUS_LABELS[item.statusID] ?? 'Unknown'} tone={statusTone(item.statusID)} />
+        <Txt variant="caption" color={C.textMuted} numberOfLines={1} style={styles.flexShrink}>{item.paymentMethodTitle || '—'}</Txt>
+      </Cell>
+      <Cell col={COLS.total}>
+        <Money amount={item.totalAmount} currency={currency} style={styles.rowTotal} />
+      </Cell>
+    </TableRow>
   );
-}
-function TotalRow({ label, value, valueColor }: { label: string; value: React.ReactNode; valueColor?: string }) {
+});
+
+function SumRow({ label, amount, currency, prefix, color }: { label: string; amount: number; currency: string; prefix?: string; color?: string }) {
   return (
-    <View style={styles.totalRow}>
-      <Text style={styles.totalLabel}>{label}</Text>
-      <Text style={[styles.totalValue, valueColor ? { color: valueColor } : null]}>{value}</Text>
+    <View style={styles.sumRow}>
+      <Txt variant="label" weight="regular" color={color ?? C.textMuted}>{label}</Txt>
+      <Money amount={amount} currency={currency} prefix={prefix} style={[styles.sumValue, color ? { color } : null]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, flexDirection: 'row', backgroundColor: Colors.background },
+  root: { flex: 1, flexDirection: 'row', backgroundColor: C.bg },
+  left: { flex: 1, minWidth: 0, padding: 24, paddingBottom: 16, gap: 16 },
+  search: { width: 300 },
+  tableCard: { flex: 1, overflow: 'hidden' },
+  tableFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: C.border },
+  stack: { flexDirection: 'column', alignItems: 'flex-start', gap: 0 },
+  flex: { flex: 1, minWidth: 0 },
+  flex2: { flex: 2 },
+  flexShrink: { flexShrink: 1 },
+  rowTotal: { fontSize: 15, fontFamily: F.bold, color: C.text },
 
-  left: { flex: 1.6, padding: 20 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  title: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  foundText: { fontSize: 12, color: Colors.textMuted },
-  allShiftsBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  allShiftsText: { fontSize: 12, fontWeight: '600', color: Colors.textLight },
-  allShiftsActive: { color: Colors.primary },
-
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
-  searchWrap: { flex: 1, minWidth: 220, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, height: 42 },
-  searchInput: { flex: 1, fontSize: 13, color: Colors.text },
-  filterPill: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  filterPillActive: { backgroundColor: Colors.primaryDark, borderColor: Colors.primaryDark },
-  filterPillText: { fontSize: 12, fontWeight: '600', color: Colors.textLight },
-  filterPillTextActive: { color: '#fff' },
-
-  empty: { alignItems: 'center', marginTop: 60, gap: 8 },
-  emptyText: { fontSize: 13, color: Colors.textMuted },
-
-  orderRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.surface,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 14, marginBottom: 8,
-  },
-  orderRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  orderNum: { fontSize: 13, fontWeight: '800', color: Colors.text },
-  custName: { fontSize: 13, color: Colors.textLight, maxWidth: 160 },
-  typeChip: { backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  typeChipText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
-  tableChip: { backgroundColor: '#FFF7ED', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  tableChipText: { fontSize: 10, fontWeight: '700', color: '#C2410C' },
-  methodChip: { backgroundColor: Colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  methodChipText: { fontSize: 11, fontWeight: '600', color: Colors.textLight },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  statusBadgeText: { fontSize: 11, fontWeight: '700' },
-  amount: { fontSize: 14, fontWeight: '800', color: Colors.text, minWidth: 70, textAlign: 'right' },
-
-  loadMoreBtn: { padding: 12, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border },
-  loadMoreText: { fontSize: 13, fontWeight: '700', color: Colors.primaryDark },
-
-  right: { flex: 1, backgroundColor: Colors.surface, borderLeftWidth: 1, borderLeftColor: Colors.border },
-  emptyDetail: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyDetailText: { fontSize: 13, color: Colors.textMuted },
-
-  detailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-  detailTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  detailSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-
-  statusStrip: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 10, padding: 12, marginBottom: 14 },
-  stripTotal: { fontSize: 16, fontWeight: '800', color: Colors.text },
-
-  infoGrid: { gap: 4, marginBottom: 10 },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  metaLabel: { fontSize: 12, color: Colors.textLight },
-  metaValue: { fontSize: 12, fontWeight: '700', color: Colors.text },
-
-  sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 14, marginBottom: 8 },
-
-  lineItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.divider },
-  liName: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  liMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  liTotal: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  noItems: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
-
-  totalsBlock: { marginTop: 14, backgroundColor: Colors.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  totalLabel: { fontSize: 12, color: Colors.textLight },
-  totalValue: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  grandTotalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
-  grandTotalLabel: { fontSize: 14, fontWeight: '800', color: Colors.text },
-  grandTotalValue: { fontSize: 14, fontWeight: '800', color: Colors.primary },
-
-  resumeBtn: { flexDirection: 'row', gap: 8, marginTop: 20, backgroundColor: Colors.primary, borderRadius: 12, height: 48, alignItems: 'center', justifyContent: 'center' },
-  resumeBtnText: { fontSize: 14, fontWeight: '800', color: '#fff' },
-  detailActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  reprintBtn: {
-    flexDirection: 'row', gap: 8, paddingHorizontal: 22, height: 48, borderRadius: 12,
-    borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface,
-    alignItems: 'center', justifyContent: 'center', minWidth: 130,
-  },
-  reprintBtnText: { fontSize: 14, fontWeight: '800', color: Colors.text },
-  liMod: { fontSize: 12, color: Colors.textLight, marginTop: 1 },
-  liModChild: { marginLeft: 14, color: Colors.textMuted },
-  liNote: { fontSize: 12, fontWeight: '700', color: '#B45309', marginTop: 2 },
+  drawer: { width: 400, backgroundColor: C.surface, borderLeftWidth: 1, borderLeftColor: C.border },
+  drawerHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.divider },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  drawerBody: { padding: 20, gap: 12 },
+  customerBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: C.bg },
+  section: { marginTop: 4, letterSpacing: 0.8 },
+  lineItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
+  qty: { minWidth: 26 },
+  modChild: { marginLeft: 14 },
+  lineTotal: { fontSize: 14, fontFamily: F.semibold, color: C.text },
+  sums: { gap: 6, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.divider },
+  sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sumValue: { fontSize: 14, fontFamily: F.regular, color: C.textMuted },
+  grandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, marginTop: 2, borderTopWidth: 1, borderTopColor: C.border },
+  grand: { fontSize: 22, fontFamily: F.bold, color: C.text },
+  pays: { gap: 6 },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.bg },
+  payCheck: { width: 24, height: 24, borderRadius: 12, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
+  payAmount: { fontSize: 14, fontFamily: F.semibold, color: C.text },
+  drawerFoot: { flexDirection: 'row', gap: 8, padding: 20, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
 });

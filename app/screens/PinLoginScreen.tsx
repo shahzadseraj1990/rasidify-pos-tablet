@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import { useAuthStore } from '../store/authStore';
@@ -10,13 +9,12 @@ import { useSessionStore, profileFromBootstrap } from '../store/sessionStore';
 import * as SecureStore from 'expo-secure-store';
 import { deviceService } from '../services/deviceService';
 import { shiftService } from '../services/shiftService';
-import { Colors } from '../utils/colors';
-import Icon from '../components/Icon';
-import RasidifyLogo from '../components/RasidifyLogo';
+import { C } from '../theme/tokens';
+import { Button, Numpad } from '../components/ui';
+import AuthLayout, { AuthHeading, AuthError } from '../components/auth/AuthLayout';
 import { appAlert } from '../utils/appAlert';
 
 const PASSCODE_LENGTH = 6;
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'PinLogin'> };
 
@@ -130,93 +128,33 @@ export default function PinLoginScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={styles.brand}>
-        <RasidifyLogo width={140} variant="onDark" />
-      </View>
-
-      <Animated.View style={[styles.card, { transform: [{ translateX: shakeAnim }] }]}>
-        <View style={styles.iconCircle}>
-          <Icon name="lock" size={20} color="#fff" />
-        </View>
-        <Text style={styles.cardTitle}>Enter Passcode</Text>
-        <Text style={styles.cardSub}>Enter your 6-digit staff passcode to start your session</Text>
-
-        {!!error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        <View style={styles.dotsRow}>
-          {Array.from({ length: PASSCODE_LENGTH }).map((_, i) => (
-            <View key={i} style={[styles.dot, i < passcode.length && styles.dotFilled]} />
-          ))}
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color={Colors.primary} size="large" style={styles.loader} />
-        ) : (
-          <View style={styles.keypad}>
-            {KEYS.map((key, i) => {
-              if (key === '') return <View key={i} style={styles.key} />;
-              if (key === 'back') {
-                return (
-                  <TouchableOpacity key={i} style={styles.key} onPress={() => press('back')} activeOpacity={0.7}>
-                    <Icon name="backspace-outline" library="mci" size={20} color={Colors.textMuted} />
-                  </TouchableOpacity>
-                );
-              }
-              return (
-                <TouchableOpacity key={i} style={styles.key} onPress={() => press(key)} activeOpacity={0.7}>
-                  <Text style={styles.keyText}>{key}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-
-        <TouchableOpacity style={styles.switchBtn} onPress={handleSwitchDevice} disabled={loading}>
-          <Text style={styles.switchBtnText}>Switch Device</Text>
-        </TouchableOpacity>
+    <AuthLayout
+      step={2}
+      facts={[
+        { label: 'Device', value: 'Linked', tone: 'ok' },
+        { label: 'Status', value: loading ? 'Signing in…' : 'Waiting for PIN', tone: 'warn' },
+      ]}
+      footerRight={<Button variant="ghost" size="sm" label="Switch device" onPress={handleSwitchDevice} disabled={loading} />}
+    >
+      <AuthHeading title="Enter your PIN" subtitle={`Enter your ${PASSCODE_LENGTH}-digit staff passcode to start your session.`} />
+      <AuthError message={error} />
+      <Animated.View style={[styles.dots, { transform: [{ translateX: shakeAnim }] }]}>
+        {Array.from({ length: PASSCODE_LENGTH }).map((_, i) => (
+          <View key={i} style={[styles.dot, i < passcode.length && styles.dotOn]} />
+        ))}
       </Animated.View>
-    </View>
+      {loading ? (
+        <ActivityIndicator color={C.brand} size="large" style={styles.loader} />
+      ) : (
+        <Numpad outline keyHeight={64} onDigit={press} onBackspace={() => press('back')} onClear={() => { setPasscode(''); setError(''); }} />
+      )}
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.primaryDark, alignItems: 'center', justifyContent: 'center', padding: 24 },
-
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, position: 'absolute', top: 48 },
-
-  card: {
-    width: '100%', maxWidth: 380, backgroundColor: Colors.surface, borderRadius: 20,
-    paddingVertical: 32, paddingHorizontal: 28, alignItems: 'center',
-  },
-  iconCircle: {
-    width: 52, height: 52, borderRadius: 14, backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
-  },
-  cardTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 6, textAlign: 'center' },
-  cardSub: { fontSize: 12, color: Colors.textLight, marginBottom: 20, textAlign: 'center' },
-
-  errorBox: { backgroundColor: Colors.dangerBg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 16 },
-  errorText: { color: Colors.danger, fontSize: 12, fontWeight: '600', textAlign: 'center' },
-
-  dotsRow: { flexDirection: 'row', gap: 14, marginBottom: 24 },
-  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: Colors.border, backgroundColor: 'transparent' },
-  dotFilled: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-
-  loader: { height: 200 },
-
-  keypad: { width: 240, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  key: {
-    width: 68, height: 68, borderRadius: 34, marginBottom: 10,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
-  },
-  keyText: { fontSize: 22, fontWeight: '700', color: Colors.text },
-
-  switchBtn: { marginTop: 16, padding: 8 },
-  switchBtnText: { color: Colors.textLight, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 14, paddingVertical: 6 },
+  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: C.border },
+  dotOn: { backgroundColor: C.brand, borderColor: C.brand },
+  loader: { height: 286 },
 });

@@ -3,24 +3,19 @@ import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
+import { SettingsPage } from '../components/ui';
 import Icon from '../components/Icon';
 import { usePrinterStore } from '../store/printerStore';
 import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ embedded }: { embedded?: boolean } = {}) {
   const navigation = useNavigation();
   const printer = usePrinterStore();
   const receiptSettings = useReceiptSettingsStore();
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={14} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+    <SettingsPage title="General" subtitle="Receipt width and device options" embedded={embedded} scroll={false}>
 
       <View style={styles.body}>
         <Text style={styles.sectionLabel}>Receipt</Text>
@@ -53,7 +48,7 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
-    </View>
+    </SettingsPage>
   );
 }
 

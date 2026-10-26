@@ -11,6 +11,8 @@ export interface ReceiptItem {
   // "Beef Burger +3, Fries, Size: Large +2, Coke" — chosen modifiers/combo
   // items for this line, printed as a smaller sub-line under the item name.
   selections?: string;
+  // Per-item kitchen note ("No onion") — printed on the kitchen ticket.
+  note?: string;
 }
 
 /** Mirrors web POS ReceiptData interface exactly */
@@ -70,6 +72,10 @@ export interface ReceiptSettings {
   showPoweredBy:       boolean;
   bilingualLabels:     boolean;
   showAlternateName:   boolean;
+  // Kitchen receipt (web POS "Print Kitchen"): 'kitchen' prints the kitchen
+  // ticket instead of the customer receipt after payment; 'both' prints the
+  // customer receipt and then the kitchen ticket.
+  kitchenReceipt:      'off' | 'kitchen' | 'both';
   // Store name/address/VAT/phone/logo are NOT settings: they come from the
   // account profile on every session (sessionStore getStoreInfo).
 }
@@ -118,6 +124,7 @@ export const RECEIPT_SETTINGS_DEFAULTS: ReceiptSettings = {
   socialFb:            '',
   socialTiktok:        '',
   showPoweredBy:       true,
+  kitchenReceipt:      'off',
   bilingualLabels:     false,
   showAlternateName:   true,
 };

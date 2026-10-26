@@ -1,15 +1,12 @@
 import React, { useRef, useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Animated,
-} from 'react-native';
+import { View, TextInput, StyleSheet, Animated } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation';
 import { useAuthStore } from '../store/authStore';
 import { deviceService } from '../services/deviceService';
-import { Colors } from '../utils/colors';
-import Icon from '../components/Icon';
-import RasidifyLogo from '../components/RasidifyLogo';
+import { C, F, R } from '../theme/tokens';
+import { Txt, Glyph, Button } from '../components/ui';
+import AuthLayout, { AuthHeading, AuthError } from '../components/auth/AuthLayout';
 import { applyDevBypass } from '../utils/devBypass';
 
 const CODE_LENGTH = 8;
@@ -93,116 +90,65 @@ export default function DeviceAuthenticateScreen({ navigation }: Props) {
     navigation.replace('Shell');
   };
 
+  const complete = digits.every(Boolean);
+
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.brand}>
-          <RasidifyLogo width={150} variant="onDark" />
-        </View>
-
-        <Animated.View style={[styles.card, { transform: [{ translateX: shakeAnim }] }]}>
-          <View style={styles.iconCircle}>
-            <Icon name="user" size={22} color="#fff" />
-          </View>
-
-          <Text style={styles.cardTitle}>Authenticate Device</Text>
-          <Text style={styles.cardSub}>
-            Enter the device code from your Rasidify dashboard to link this terminal to your branch.
-            This is a one-time step.
-          </Text>
-
-          {!!error && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          <Text style={styles.fieldLabel}>Device Code</Text>
-          <View style={styles.codeRow}>
-            {digits.map((d, i) => (
+    <AuthLayout
+      step={1}
+      facts={[
+        { label: 'Branch', value: '—', tone: 'muted' },
+        { label: 'Device', value: '—', tone: 'muted' },
+        { label: 'Status', value: 'Not linked yet', tone: 'warn' },
+      ]}
+    >
+      <AuthHeading
+        title="Link this device"
+        subtitle="Enter the 8-character code from your Rasidify dashboard to connect this terminal to your branch. You only do this once."
+      />
+      <AuthError message={error} />
+      <Animated.View style={[styles.field, { transform: [{ translateX: shakeAnim }] }]}>
+        <Txt variant="caption" weight="semibold">Device code</Txt>
+        <View style={styles.codeRow}>
+          {digits.map((d, i) => (
+            <React.Fragment key={i}>
+              {i === CODE_LENGTH / 2 ? <Txt variant="h2" style={styles.dash}>-</Txt> : null}
               <TextInput
-                key={i}
                 ref={el => { inputs.current[i] = el; }}
-                style={styles.codeBox}
+                style={[styles.codeBox, d ? styles.codeBoxFilled : null]}
                 value={d}
                 onChangeText={t => onChangeDigit(i, t)}
                 onKeyPress={e => onKeyPress(i, e.nativeEvent.key)}
                 maxLength={CODE_LENGTH}
                 autoCapitalize="characters"
                 autoCorrect={false}
-                selectionColor={Colors.primary}
+                selectionColor={C.brand}
                 editable={!loading}
               />
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading
-              ? <ActivityIndicator color="#ffffff" size="small" />
-              : (
-                <>
-                  <Text style={styles.submitBtnText}>Authenticate</Text>
-                  <Icon name="arrow-right" size={14} color="#fff" />
-                </>
-              )}
-          </TouchableOpacity>
-
-          {__DEV__ && (
-            <TouchableOpacity style={styles.devBtn} onPress={handleDevSkip} activeOpacity={0.7}>
-              <Icon name="flask" size={12} color={Colors.warning} />
-              <Text style={styles.devBtnText}>Skip to Sell Screen (Dev)</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            </React.Fragment>
+          ))}
+        </View>
+      </Animated.View>
+      <View style={styles.hint}>
+        <Glyph name="info" size={18} color={C.brand} strokeWidth={2} />
+        <Txt variant="caption" color={C.textMuted} style={styles.flex}>Find it in Rasidify dashboard → Settings → Devices → Add device.</Txt>
+      </View>
+      <Button size="xl" label="Link device" iconRight="arrowRight" onPress={handleSubmit} loading={loading} disabled={!complete} />
+      {__DEV__ && (
+        <Button variant="ghost" label="Skip to Sell Screen (Dev)" onPress={handleDevSkip} />
+      )}
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.primaryDark },
-  scroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24 },
-
-  card: {
-    width: '100%', maxWidth: 420, backgroundColor: Colors.surface, borderRadius: 20,
-    paddingVertical: 32, paddingHorizontal: 28, alignItems: 'center',
-  },
-  iconCircle: {
-    width: 52, height: 52, borderRadius: 14, backgroundColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
-  },
-  cardTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 8, textAlign: 'center' },
-  cardSub: { fontSize: 13, color: Colors.textLight, marginBottom: 22, textAlign: 'center', lineHeight: 19 },
-
-  errorBox: { backgroundColor: Colors.dangerBg, borderRadius: 10, padding: 10, marginBottom: 16, width: '100%' },
-  errorText: { color: Colors.danger, fontSize: 12, fontWeight: '600', textAlign: 'center' },
-
-  fieldLabel: { alignSelf: 'flex-start', fontSize: 12, fontWeight: '700', color: Colors.textLight, marginBottom: 8 },
-  codeRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', marginBottom: 22 },
+  flex: { flex: 1 },
+  field: { gap: 8 },
+  codeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dash: { width: 14, textAlign: 'center' },
   codeBox: {
-    width: 38, height: 46, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border,
-    backgroundColor: Colors.background, color: Colors.text, fontSize: 18, fontWeight: '800',
-    textAlign: 'center',
+    flex: 1, height: 60, borderRadius: R.md, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface,
+    color: C.text, fontSize: 22, fontFamily: F.bold, textAlign: 'center', paddingVertical: 0,
   },
-
-  submitBtn: {
-    width: '100%', flexDirection: 'row', gap: 8, backgroundColor: Colors.primaryDark, borderRadius: 12, height: 52,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
-
-  devBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center',
-    marginTop: 18, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
-    backgroundColor: Colors.warningBg, borderWidth: 1, borderColor: Colors.warning,
-  },
-  devBtnText: { fontSize: 12, fontWeight: '700', color: Colors.warning },
+  codeBoxFilled: { borderColor: C.brand },
+  hint: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: R.md, backgroundColor: C.bg },
 });

@@ -3,22 +3,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
+import { SettingsPage } from '../components/ui';
 import Icon from '../components/Icon';
 import { useAuthStore } from '../store/authStore';
 
-export default function BrandInfoScreen() {
+export default function BrandInfoScreen({ embedded }: { embedded?: boolean } = {}) {
   const navigation = useNavigation();
   const user = useAuthStore(s => s.user);
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={14} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Brand Information</Text>
-      </View>
+    <SettingsPage title="Brand information" subtitle="Business details used on receipts" embedded={embedded} scroll={false}>
 
       <View style={styles.body}>
         <View style={styles.profileCard}>
@@ -46,7 +41,7 @@ export default function BrandInfoScreen() {
           <InfoRow label="Address" value={user?.companyAddress} last />
         </View>
       </View>
-    </View>
+    </SettingsPage>
   );
 }
 

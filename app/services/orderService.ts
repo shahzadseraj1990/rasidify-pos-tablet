@@ -5,6 +5,7 @@ import { useTaxStore } from '../store/taxStore';
 import { useAuthStore } from '../store/authStore';
 import { useSessionStore } from '../store/sessionStore';
 import { deviceService } from './deviceService';
+import { roundMoney } from '../utils/format';
 
 export interface PaymentRow {
   paymentMethod: string; // label string e.g. "Cash"
@@ -102,11 +103,13 @@ export const orderService = {
     const user = useAuthStore.getState().user;
     const tenantID = (user as any)?.userID ?? 0;
 
-    const subtotal    = payload.items.reduce((s, i) => s + i.total, 0);
+    // Same 2-decimal rounding as the cart (cartStore), so the invoice total
+    // equals what the cashier charged.
+    const subtotal    = roundMoney(payload.items.reduce((s, i) => s + i.total, 0));
     const discountAmt = payload.discount;
     // Tax on subtotal after discount; total = (subtotal - discount) + vat
-    const vatAmt      = Math.max(0, subtotal - discountAmt) * taxRate;
-    const total       = Math.max(0, subtotal - discountAmt) + vatAmt;
+    const vatAmt      = roundMoney(Math.max(0, subtotal - discountAmt) * taxRate);
+    const total       = roundMoney(Math.max(0, subtotal - discountAmt) + vatAmt);
     const now         = new Date().toISOString().replace(/\.\d{3}Z$/, '');
     const refNo       = String(Math.floor(Date.now() / 1000));
 
@@ -276,6 +279,8 @@ export const orderService = {
 
     // ── Record payments (POST /pos/invoice/payment/create) ─────────────────
     const { methods, accountTypes } = lookups();
+    // The invoice procedures round VAT and total to 2 decimals (2026-10-26), so
+    // the 2-decimal total the cashier takes settles the Balance exactly.
     const rows = payload.paymentRows && payload.paymentRows.length > 0
       ? payload.paymentRows
       : [{ paymentMethod: payload.paymentMethod ?? 'Cash', paymentAmount: payload.paymentAmount ?? total }];

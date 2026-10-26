@@ -1,9 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
-import { Colors } from '../utils/colors';
-import Icon from '../components/Icon';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
+import { C, F } from '../theme/tokens';
+import {
+  Txt, Button, IconButton, Pill, Avatar, Card, PageHeader, EmptyState, KeyValue,
+  UnderlineTabs, TableHead, Cell, TableRow, ColSpec,
+} from '../components/ui';
 import Money from '../components/Money';
 import { useAuthStore } from '../store/authStore';
+import { useShiftStore } from '../store/shiftStore';
 import { shiftService } from '../services/shiftService';
 import { posApi } from '../services/api';
 
@@ -19,32 +23,42 @@ interface ShiftRow {
   statusID: number; // 1 = open, 2 = closed (best-effort — adjust if backend differs)
 }
 
-const FILTERS = ['All', 'Open', 'Closed'] as const;
+type Filter = 'all' | 'open' | 'closed';
+
+const COLS: Record<'shift' | 'cashier' | 'duration' | 'orders' | 'sales' | 'variance' | 'status', ColSpec> = {
+  shift: { label: 'Shift', flex: 1.2 },
+  cashier: { label: 'Cashier', flex: 2.4 },
+  duration: { label: 'Duration', flex: 1.1 },
+  orders: { label: 'Orders', flex: 0.8, align: 'right' },
+  sales: { label: 'Sales', flex: 1.1, align: 'right' },
+  variance: { label: 'Cash variance', flex: 1.3, align: 'right' },
+  status: { label: 'Status', flex: 1, align: 'right' },
+};
 
 function fmtStarted(d: string): string {
   const date = new Date(d);
   if (isNaN(date.getTime())) return d;
-  return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) +
+  return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) +
     ', ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function fmtDuration(start: string, end?: string | null): string {
-  if (!end) return 'Open';
-  const ms = new Date(end).getTime() - new Date(start).getTime();
+  const ms = (end ? new Date(end).getTime() : Date.now()) - new Date(start).getTime();
   if (isNaN(ms) || ms < 0) return '—';
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
-  return `${h}h ${m}m`;
+  return `${h}h ${String(m).padStart(2, '0')}m`;
 }
 
-export default function ShiftsScreen() {
+export default function ShiftsScreen({ onEndShift }: { onEndShift?: () => void }) {
   const user = useAuthStore(s => s.user);
+  const activeShift = useShiftStore(s => s.activeShift);
   const currency = user?.currency ?? 'SAR';
 
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<typeof FILTERS[number]>('All');
+  const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<ShiftRow | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -79,11 +93,15 @@ export default function ShiftsScreen() {
     }
   }
 
-  const filtered = shifts.filter(s => {
-    if (filter === 'Open') return s.statusID === 1;
-    if (filter === 'Closed') return s.statusID === 2;
-    return true;
-  });
+  const counts = useMemo(() => ({
+    all: shifts.length,
+    open: shifts.filter(s => s.statusID === 1).length,
+    closed: shifts.filter(s => s.statusID === 2).length,
+  }), [shifts]);
+  const filtered = useMemo(() => shifts.filter(s =>
+    filter === 'open' ? s.statusID === 1 : filter === 'closed' ? s.statusID === 2 : true), [shifts, filter]);
+  const totalSales = useMemo(() => filtered.reduce((sum, s) => sum + Number(s.totalSales ?? 0), 0), [filtered]);
+  const withVariance = shifts.filter(s => s.variance != null && Math.abs(s.variance) >= 0.005).length;
 
   async function openDetail(row: ShiftRow) {
     setSelected(row);
@@ -98,175 +116,145 @@ export default function ShiftsScreen() {
     }
   }
 
+  const sm = summary?.summary;
   return (
     <View style={styles.root}>
       <View style={styles.left}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.title}>Shift History</Text>
-            <Text style={styles.subtitle}>{filtered.length} shifts found</Text>
-          </View>
-        </View>
+        <PageHeader
+          title="Shifts"
+          subtitle={`${shifts.length} shifts · ${withVariance} with a cash difference`}
+          right={activeShift && onEndShift ? <Button variant="dark" label={`End shift #${activeShift.shiftID}`} onPress={onEndShift} /> : null}
+        />
 
-        <View style={styles.filterRow}>
-          {FILTERS.map(f => (
-            <TouchableOpacity key={f} style={[styles.filterPill, filter === f && styles.filterPillActive]} onPress={() => setFilter(f)}>
-              <Text style={[styles.filterPillText, filter === f && styles.filterPillTextActive]}>{f}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {loading && !refreshing ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={s => String(s.shiftID)}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={Colors.primary} />}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Icon name="clock" size={28} color={Colors.textMuted} />
-                <Text style={styles.emptyText}>No shift history found</Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const active = selected?.shiftID === item.shiftID;
-              const open = item.statusID === 1;
-              return (
-                <TouchableOpacity style={[styles.row, active && styles.rowActive]} onPress={() => openDetail(item)}>
-                  <Text style={styles.shiftNo}>#{item.shiftID}</Text>
-                  <Text style={styles.rowText} numberOfLines={1}>{item.cashierName}</Text>
-                  <Text style={[styles.rowText, styles.rowTextMuted]} numberOfLines={1}>{fmtStarted(item.startedAt)}</Text>
-                  <Text style={[styles.rowText, styles.rowTextMuted]}>{fmtDuration(item.startedAt, item.endedAt)}</Text>
-                  <Text style={styles.rowTextRight}>{item.orderCount} orders</Text>
-                  <Money amount={item.totalSales} currency={currency} style={styles.rowAmount} />
-                  <View style={[styles.statusBadge, open ? styles.statusOpen : styles.statusClosed]}>
-                    <Text style={[styles.statusText, open ? styles.statusTextOpen : styles.statusTextClosed]}>{open ? 'Open' : 'Closed'}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
+        <Card padded={false} style={styles.tableCard}>
+          <UnderlineTabs
+            tabs={[
+              { key: 'all', label: 'All', count: counts.all },
+              { key: 'open', label: 'Open', count: counts.open },
+              { key: 'closed', label: 'Closed', count: counts.closed },
+            ]}
+            value={filter}
+            onChange={setFilter}
           />
-        )}
-      </View>
-
-      <View style={styles.right}>
-        {!selected ? (
-          <View style={styles.emptyDetail}>
-            <Icon name="file-invoice" size={28} color={Colors.textMuted} />
-            <Text style={styles.emptyDetailText}>Select a shift to view details</Text>
-          </View>
-        ) : summaryLoading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
-        ) : (
-          <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
-            <View style={styles.detailHeader}>
-              <Text style={styles.detailTitle}>Shift #{selected.shiftID}</Text>
-              <TouchableOpacity onPress={() => setSelected(null)}>
-                <Icon name="times" size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
+          <TableHead cols={Object.values(COLS)} />
+          {loading && !refreshing ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={C.brand} />
+          ) : (
+            <FlatList
+              data={filtered}
+              keyExtractor={s => String(s.shiftID)}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.brand} />}
+              ListEmptyComponent={<EmptyState title="No shift history found" icon="clock" />}
+              renderItem={({ item }) => <ShiftLine item={item} selected={selected?.shiftID === item.shiftID} onPress={openDetail} />}
+            />
+          )}
+          <View style={styles.tableFoot}>
+            <Txt variant="caption" color={C.textMuted}>Showing {filtered.length} of {shifts.length} shifts</Txt>
+            <View style={styles.footTotal}>
+              <Txt variant="caption" color={C.textMuted}>Total sales</Txt>
+              <Money amount={totalSales} currency={currency} style={styles.footAmount} />
             </View>
-
-            <MetaRow label="Cashier" value={selected.cashierName} />
-            <MetaRow label="Branch" value={selected.branchName} />
-            <MetaRow label="Started" value={fmtStarted(selected.startedAt)} />
-
-            {summary?.summary && (
-              <>
-                <Text style={styles.sectionTitle}>Sales</Text>
-                <View style={styles.card}>
-                  <MetaRow label="Orders" value={String(summary.summary.orderCount ?? 0)} />
-                  <MetaRow label="Gross Sales" value={<Money amount={summary.summary.totalSales} currency={currency} style={styles.metaValue} />} />
-                  <MetaRow label="Discounts" value={<Money amount={summary.summary.totalDiscount} currency={currency} style={styles.metaValue} prefix="- " />} />
-                  <MetaRow label="VAT" value={<Money amount={summary.summary.totalTax} currency={currency} style={styles.metaValue} />} />
-                </View>
-
-                {summary.payments?.length > 0 && (
-                  <>
-                    <Text style={styles.sectionTitle}>Payments</Text>
-                    <View style={styles.card}>
-                      {summary.payments.map((p: any, i: number) => (
-                        <MetaRow key={i} label={`${p.paymentMethod} (${p.txCount}x)`} value={<Money amount={p.total} currency={currency} style={styles.metaValue} />} />
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                <Text style={styles.sectionTitle}>Cash Drawer</Text>
-                <View style={styles.card}>
-                  <MetaRow label="Opening Cash" value={<Money amount={summary.summary.openingCash} currency={currency} style={styles.metaValue} />} />
-                  <MetaRow label="Paid In" value={<Money amount={summary.summary.totalPaidIn} currency={currency} style={styles.metaValue} prefix="+ " />} />
-                  <MetaRow label="Paid Out" value={<Money amount={summary.summary.totalPaidOut} currency={currency} style={styles.metaValue} prefix="- " />} />
-                  <MetaRow label="Expected Cash" value={<Money amount={summary.summary.expectedCash} currency={currency} style={[styles.metaValue, styles.metaValueBold]} />} bold />
-                </View>
-              </>
-            )}
-
-            {!summary && (
-              <Text style={styles.emptyDetailText}>Could not load shift summary.</Text>
-            )}
-          </ScrollView>
-        )}
+          </View>
+        </Card>
       </View>
+
+      {selected ? (
+        <View style={styles.drawer}>
+          <View style={styles.drawerHead}>
+            <View style={styles.flex}>
+              <View style={styles.titleRow}>
+                <Txt variant="h1">Shift #{selected.shiftID}</Txt>
+                <Pill label={selected.statusID === 1 ? 'Open' : 'Closed'} tone={selected.statusID === 1 ? 'success' : 'neutral'} dot />
+              </View>
+              <Txt variant="caption" color={C.textMuted}>{selected.cashierName} · {selected.branchName} · {fmtStarted(selected.startedAt)}</Txt>
+            </View>
+            <IconButton icon="close" variant="tint" onPress={() => setSelected(null)} />
+          </View>
+          {summaryLoading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={C.brand} />
+          ) : sm ? (
+            <ScrollView contentContainerStyle={styles.drawerBody} showsVerticalScrollIndicator={false}>
+              <Txt variant="micro" color={C.textMuted}>SALES</Txt>
+              <View>
+                <KeyValue label="Orders" value={String(sm.orderCount ?? 0)} />
+                <KeyValue label="Gross sales" value={<Money amount={sm.totalSales} currency={currency} style={styles.kv} />} />
+                <KeyValue label="Discounts" value={<Money amount={sm.totalDiscount} currency={currency} prefix="− " style={styles.kv} />} />
+                <KeyValue label="VAT" value={<Money amount={sm.totalTax} currency={currency} style={styles.kv} />} divider={false} />
+              </View>
+              {summary.payments?.length > 0 ? (
+                <>
+                  <Txt variant="micro" color={C.textMuted} style={styles.section}>PAYMENTS</Txt>
+                  <View>
+                    {summary.payments.map((p: any, i: number) => (
+                      <KeyValue key={i} label={`${p.paymentMethod} (${p.txCount}x)`} value={<Money amount={p.total} currency={currency} style={styles.kv} />}
+                        divider={i < summary.payments.length - 1} />
+                    ))}
+                  </View>
+                </>
+              ) : null}
+              <Txt variant="micro" color={C.textMuted} style={styles.section}>CASH DRAWER</Txt>
+              <View>
+                <KeyValue label="Opening cash" value={<Money amount={sm.openingCash} currency={currency} style={styles.kv} />} />
+                <KeyValue label="Paid in" value={<Money amount={sm.totalPaidIn} currency={currency} prefix="+ " style={styles.kv} />} />
+                <KeyValue label="Paid out" value={<Money amount={sm.totalPaidOut} currency={currency} prefix="− " style={[styles.kv, { color: C.dangerText }]} />} />
+                <KeyValue strong label="Expected cash" value={<Money amount={sm.expectedCash} currency={currency} style={styles.kvStrong} />} divider={false} />
+              </View>
+            </ScrollView>
+          ) : (
+            <EmptyState title="Could not load shift summary." icon="reports" />
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function MetaRow({ label, value, bold }: { label: string; value: React.ReactNode; bold?: boolean }) {
+const ShiftLine = React.memo(function ShiftLine({ item, selected, onPress }: { item: ShiftRow; selected: boolean; onPress: (s: ShiftRow) => void }) {
+  const open = item.statusID === 1;
+  const v = item.variance;
+  const balanced = v == null || Math.abs(v) < 0.005;
   return (
-    <View style={styles.metaRow}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={[styles.metaValue, bold && styles.metaValueBold]}>{value}</Text>
-    </View>
+    <TableRow selected={selected} onPress={() => onPress(item)}>
+      <Cell col={COLS.shift} style={styles.stack}>
+        <Txt variant="body" weight="bold">#{item.shiftID}</Txt>
+        <Txt variant="small" weight="regular" color={C.textMuted}>{fmtStarted(item.startedAt)}</Txt>
+      </Cell>
+      <Cell col={COLS.cashier}>
+        <Avatar name={item.cashierName} />
+        <View style={styles.flex}>
+          <Txt variant="body" weight="semibold" numberOfLines={1}>{item.cashierName}</Txt>
+          <Txt variant="small" weight="regular" color={C.textMuted} numberOfLines={1}>{item.branchName}</Txt>
+        </View>
+      </Cell>
+      <Cell col={COLS.duration}><Txt variant="label" weight="regular">{fmtDuration(item.startedAt, item.endedAt)}</Txt></Cell>
+      <Cell col={COLS.orders}><Txt variant="label" weight="regular">{item.orderCount}</Txt></Cell>
+      <Cell col={COLS.sales}><Txt variant="body" weight="bold">{Number(item.totalSales ?? 0).toFixed(2)}</Txt></Cell>
+      <Cell col={COLS.variance}>
+        {open || v == null
+          ? <Txt variant="label" color={C.textSubtle}>—</Txt>
+          : balanced
+            ? <Txt variant="label" weight="semibold" color={C.successText}>Balanced</Txt>
+            : <Txt variant="label" weight="semibold" color={v < 0 ? C.dangerText : C.warningText}>{v > 0 ? '+' : ''}{v.toFixed(2)}</Txt>}
+      </Cell>
+      <Cell col={COLS.status}><Pill label={open ? 'Open' : 'Closed'} tone={open ? 'success' : 'neutral'} dot /></Cell>
+    </TableRow>
   );
-}
+});
 
 const styles = StyleSheet.create({
-  root: { flex: 1, flexDirection: 'row', backgroundColor: Colors.background },
-
-  left: { flex: 1.8, padding: 24 },
-  headerRow: { marginBottom: 14 },
-  title: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  filterPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  filterPillActive: { backgroundColor: Colors.primaryDark, borderColor: Colors.primaryDark },
-  filterPillText: { fontSize: 12, fontWeight: '600', color: Colors.textLight },
-  filterPillTextActive: { color: '#fff' },
-
-  empty: { alignItems: 'center', marginTop: 60, gap: 8 },
-  emptyText: { fontSize: 13, color: Colors.textMuted },
-
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.border, padding: 14, marginBottom: 8,
-  },
-  rowActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  shiftNo: { fontSize: 13, fontWeight: '800', color: Colors.primary, width: 40 },
-  rowText: { fontSize: 13, color: Colors.text, flex: 1 },
-  rowTextMuted: { color: Colors.textMuted, fontSize: 12 },
-  rowTextRight: { fontSize: 12, color: Colors.textMuted, minWidth: 70, textAlign: 'right' },
-  rowAmount: { fontSize: 13, fontWeight: '800', color: Colors.text, minWidth: 70, textAlign: 'right' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, minWidth: 56, alignItems: 'center' },
-  statusOpen: { backgroundColor: Colors.successBg },
-  statusClosed: { backgroundColor: Colors.surfaceAlt },
-  statusText: { fontSize: 11, fontWeight: '700' },
-  statusTextOpen: { color: Colors.success },
-  statusTextClosed: { color: Colors.textMuted },
-
-  right: { flex: 1, backgroundColor: Colors.surface, borderLeftWidth: 1, borderLeftColor: Colors.border },
-  emptyDetail: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyDetailText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
-
-  detailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  detailTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
-
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  metaLabel: { fontSize: 12, color: Colors.textLight },
-  metaValue: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  metaValueBold: { fontSize: 13, color: Colors.primary },
-
-  sectionTitle: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 16, marginBottom: 6 },
-  card: { backgroundColor: Colors.background, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border },
+  root: { flex: 1, flexDirection: 'row', backgroundColor: C.bg },
+  left: { flex: 1, minWidth: 0, padding: 24, paddingBottom: 16, gap: 16 },
+  tableCard: { flex: 1, overflow: 'hidden' },
+  tableFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: C.border },
+  footTotal: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  footAmount: { fontSize: 13, fontFamily: F.bold, color: C.text },
+  stack: { flexDirection: 'column', alignItems: 'flex-start', gap: 0 },
+  flex: { flex: 1, minWidth: 0 },
+  drawer: { width: 400, backgroundColor: C.surface, borderLeftWidth: 1, borderLeftColor: C.border },
+  drawerHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.divider },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  drawerBody: { padding: 20, gap: 4 },
+  section: { marginTop: 14 },
+  kv: { fontSize: 14, fontFamily: F.bold, color: C.text },
+  kvStrong: { fontSize: 18, fontFamily: F.bold, color: C.text },
 });

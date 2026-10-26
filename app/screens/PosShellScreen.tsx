@@ -9,7 +9,6 @@ import { useShiftStore } from '../store/shiftStore';
 import { shiftService } from '../services/shiftService';
 import { authService } from '../services/authService';
 import { Colors } from '../utils/colors';
-import Icon from '../components/Icon';
 import Money from '../components/Money';
 import { useCustomerDisplayStore } from '../store/customerDisplayStore';
 import { useKitchenStore } from '../store/kitchenStore';
@@ -30,19 +29,22 @@ import MenuScreen from './MenuScreen';
 import ShiftsScreen from './ShiftsScreen';
 import TablesScreen from './TablesScreen';
 import { appAlert } from '../utils/appAlert';
+import PosTopBar, { TopBarSection } from '../components/PosTopBar';
+import { C, F } from '../theme/tokens';
+import { Txt, Button, Field, Dialog, KeyValue } from '../components/ui';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Shell'> };
 
 type SectionKey = 'Sell' | 'Orders' | 'Tables' | 'Reports' | 'Menu' | 'Shifts';
 
-const BASE_SECTIONS: { key: SectionKey; label: string; icon: string }[] = [
-  { key: 'Sell', label: 'Sell', icon: 'cash-register' },
-  { key: 'Orders', label: 'Orders', icon: 'clipboard-list' },
-  { key: 'Tables', label: 'Tables', icon: 'chair' },
-  { key: 'Reports', label: 'Reports', icon: 'chart-bar' },
-  { key: 'Menu', label: 'Menu', icon: 'bars' },
+const BASE_SECTIONS: TopBarSection<SectionKey>[] = [
+  { key: 'Sell', label: 'Sell', icon: 'sell' },
+  { key: 'Orders', label: 'Orders', icon: 'orders' },
+  { key: 'Tables', label: 'Tables', icon: 'tables' },
+  { key: 'Reports', label: 'Reports', icon: 'reports' },
+  { key: 'Menu', label: 'Menu', icon: 'menu' },
   { key: 'Shifts', label: 'Shifts', icon: 'clock' },
-];
+]
 
 export default function PosShellScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -178,163 +180,85 @@ export default function PosShellScreen({ navigation }: Props) {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.topbar, { paddingTop: insets.top, height: 56 + insets.top }]}>
-        <View style={styles.topbarLeft}>
-          {activeShift && (
-            <View style={styles.shiftBadge}>
-              <View style={styles.shiftDot} />
-              <Text style={styles.shiftBadgeText}>Shift #{activeShift.shiftID} · Live</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.tabs}>
-          {SECTIONS.map(s => (
-            <TouchableOpacity
-              key={s.key}
-              style={styles.tabBtn}
-              onPress={() => setSection(s.key)}
-              activeOpacity={0.7}
-            >
-              <Icon name={s.icon} size={14} color={section === s.key ? Colors.text : Colors.textMuted} />
-              <Text style={[styles.tabLabel, section === s.key && styles.tabLabelActive]}>{s.label}</Text>
-              {section === s.key && <View style={styles.tabUnderline} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.topbarRight} />
-      </View>
+      <PosTopBar
+        sections={SECTIONS}
+        active={section}
+        onSelect={setSection}
+        shiftID={activeShift?.shiftID}
+        topInset={insets.top}
+      />
 
       <View style={styles.content}>
         {section === 'Sell' && <SellScreen navigation={navigation} />}
         {section === 'Orders' && <OrdersScreen onResumeOrder={() => setSection('Sell')} />}
         {section === 'Tables' && <TablesScreen onStartOrder={() => setSection('Sell')} />}
-        {section === 'Reports' && <ReportsScreen />}
+        {section === 'Reports' && <ReportsScreen onEndShift={openEndShift} />}
         {section === 'Menu' && <MenuScreen onLogout={handleLogout} onEndShift={openEndShift} navigation={navigation} />}
-        {section === 'Shifts' && <ShiftsScreen />}
+        {section === 'Shifts' && <ShiftsScreen onEndShift={openEndShift} />}
       </View>
 
-      <Modal
+      <Dialog
         visible={endModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !endingShift && setEndModalVisible(false)}
+        onClose={() => !endingShift && setEndModalVisible(false)}
+        keyboard
+        width={460}
+        title="Count cash and end shift"
+        subtitle={`Shift #${activeShift?.shiftID ?? ''}`}
+        footer={<>
+          <Button variant="outline" size="lg" label="Cancel" onPress={() => setEndModalVisible(false)} disabled={endingShift} style={styles.flex} />
+          <Button variant="dark" size="lg" icon="printer" label="End shift & print Z" onPress={handleEndShift} loading={endingShift} style={styles.flex2} />
+        </>}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>End Shift</Text>
-            <Text style={styles.modalSub}>Shift #{activeShift?.shiftID}</Text>
-
-            <View style={styles.summaryBox}>
-              {loadingSummary && <ActivityIndicator color={Colors.primary} style={{ marginBottom: 8 }} />}
-              <SummaryRow label="Total Orders" value={String(endSummary?.summary.orderCount ?? activeShift?.orderCount ?? 0)} />
-              <SummaryRow label="Total Sales" value={<Money amount={endSummary?.summary.totalSales ?? activeShift?.totalSales ?? 0} currency={currency} style={styles.summaryValue} />} />
-              <SummaryRow label="Total Discount" value={<Money amount={endSummary?.summary.totalDiscount ?? activeShift?.totalDiscount ?? 0} currency={currency} style={styles.summaryValue} />} />
-              <SummaryRow label="Total Tax" value={<Money amount={endSummary?.summary.totalTax ?? activeShift?.totalTax ?? 0} currency={currency} style={styles.summaryValue} />} />
-              <View style={styles.divider} />
-              <SummaryRow label="Expected Cash" value={<Money amount={endSummary?.summary.expectedCash ?? expectedCash} currency={currency} style={[styles.summaryValue, styles.summaryHighlight]} />} highlight />
-            </View>
-
-            <Text style={styles.fieldLabel}>Closing Cash</Text>
-            <TextInput
-              style={styles.cashInput}
-              value={closingCash}
-              onChangeText={t => setClosingCash(t.replace(/[^0-9.]/g, ''))}
-              keyboardType="decimal-pad"
-              editable={!endingShift}
-            />
-
-            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Notes (Optional)</Text>
-            <TextInput
-              style={styles.notesInput}
-              placeholder="Any closing notes..."
-              placeholderTextColor={Colors.textMuted}
-              value={closingNotes}
-              onChangeText={setClosingNotes}
-              multiline
-              editable={!endingShift}
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEndModalVisible(false)} disabled={endingShift}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmBtn} onPress={handleEndShift} disabled={endingShift}>
-                {endingShift ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.confirmBtnText}>Close Shift & Print Z</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.summaryBox}>
+          {loadingSummary && <ActivityIndicator color={C.brand} />}
+          <KeyValue label="Orders" value={String(endSummary?.summary.orderCount ?? activeShift?.orderCount ?? 0)} />
+          <KeyValue label="Total sales" value={<Money amount={endSummary?.summary.totalSales ?? activeShift?.totalSales ?? 0} currency={currency} style={styles.kv} />} />
+          <KeyValue label="Discounts" value={<Money amount={endSummary?.summary.totalDiscount ?? activeShift?.totalDiscount ?? 0} currency={currency} style={styles.kv} />} />
+          <KeyValue label="VAT" value={<Money amount={endSummary?.summary.totalTax ?? activeShift?.totalTax ?? 0} currency={currency} style={styles.kv} />} />
+          <KeyValue strong label="Expected in drawer" value={<Money amount={endSummary?.summary.expectedCash ?? expectedCash} currency={currency} style={styles.kvStrong} />} divider={false} />
         </View>
-      </Modal>
+
+        <View style={styles.fieldGroup}>
+          <Txt variant="label">Counted cash</Txt>
+          <Field
+            value={closingCash}
+            onChangeText={t => setClosingCash(t.replace(/[^0-9.]/g, ''))}
+            keyboardType="decimal-pad"
+            editable={!endingShift}
+            style={styles.cashInput}
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <Txt variant="label">Closing note <Txt variant="caption" color={C.textMuted}>(optional)</Txt></Txt>
+          <Field
+            placeholder="Any closing notes..."
+            value={closingNotes}
+            onChangeText={setClosingNotes}
+            multiline
+            height={84}
+            editable={!endingShift}
+            containerStyle={styles.noteField}
+            style={styles.noteInput}
+          />
+        </View>
+      </Dialog>
       {zPrint && <ZReportPrintCapture ref={zShotRef} z={zPrint} paperWidth={printer.paperWidth} />}
     </View>
   );
 }
 
-function SummaryRow({ label, value, highlight }: { label: string; value: React.ReactNode; highlight?: boolean }) {
-  return (
-    <View style={styles.summaryRow}>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryValue, highlight && styles.summaryHighlight]}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-
-  topbar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.surface, paddingHorizontal: 20, height: 56,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  topbarLeft: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  shiftBadge: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.successBg,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, gap: 6,
-  },
-  shiftDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.success },
-  shiftBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.success },
-
-  tabs: { flexDirection: 'row', gap: 4 },
-  tabBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 56, justifyContent: 'center' },
-  tabLabel: { fontSize: 13, fontWeight: '600', color: Colors.textMuted },
-  tabLabelActive: { color: Colors.text, fontWeight: '800' },
-  tabUnderline: { position: 'absolute', bottom: 0, left: 14, right: 14, height: 2, backgroundColor: Colors.text, borderRadius: 1 },
-
-  topbarRight: { flex: 1 },
+  root: { flex: 1, backgroundColor: C.bg },
 
   content: { flex: 1 },
 
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, alignItems: 'center', justifyContent: 'center' },
-  modalCard: { width: 420, backgroundColor: Colors.surface, borderRadius: 20, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 2 },
-  modalSub: { fontSize: 13, color: Colors.textMuted, marginBottom: 16 },
-
-  summaryBox: { backgroundColor: Colors.background, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  summaryLabel: { fontSize: 13, color: Colors.textLight },
-  summaryValue: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  summaryHighlight: { color: Colors.primary, fontSize: 14 },
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: 8 },
-
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
-  cashInput: {
-    backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border,
-    paddingHorizontal: 14, height: 48, fontSize: 18, fontWeight: '800', color: Colors.text,
-  },
-  notesInput: {
-    backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border,
-    padding: 12, fontSize: 14, color: Colors.text, minHeight: 60, textAlignVertical: 'top',
-  },
-
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  cancelBtn: {
-    flex: 1, height: 48, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border,
-    justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background,
-  },
-  cancelBtnText: { fontSize: 14, fontWeight: '700', color: Colors.textLight },
-  confirmBtn: { flex: 2, height: 48, borderRadius: 12, backgroundColor: Colors.danger, justifyContent: 'center', alignItems: 'center' },
-  confirmBtnText: { fontSize: 14, fontWeight: '800', color: '#ffffff' },
+  flex: { flex: 1 },
+  flex2: { flex: 2 },
+  summaryBox: { paddingHorizontal: 16, paddingVertical: 4, borderRadius: 16, backgroundColor: C.bg },
+  kv: { fontSize: 14, fontFamily: F.bold, color: C.text },
+  kvStrong: { fontSize: 20, fontFamily: F.bold, color: C.text },
+  fieldGroup: { gap: 6 },
+  cashInput: { fontSize: 22, fontFamily: F.bold },
+  noteField: { alignItems: 'flex-start', paddingVertical: 10 },
+  noteInput: { textAlignVertical: 'top' },
 });

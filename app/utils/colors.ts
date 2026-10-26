@@ -1,43 +1,45 @@
-// Tablet POS design tokens — derived from the Rasidify web/tablet UI reference
-// (Tablet POS UI/*.png) and the brand logo materials. Distinct from the mobile
-// app's palette by design: this is a denser, light "desktop POS" look.
+// Legacy colour names, kept so screens not yet moved to the redesign's
+// components still compile — every value now comes from the 2026 design
+// tokens (app/theme/tokens.ts). New code should import `C` from there.
+import { C, palette } from '../theme/tokens';
+
 export const Colors = {
   // Brand
-  primary: '#3D74F3',
-  primaryDark: '#0D0D29',
-  primaryLight: '#E6ECFE',
+  primary: C.brand,
+  primaryDark: palette.ink,
+  primaryLight: C.brandTint,
 
   // Accent used for active/selected states, links, highlights
-  accent: '#2052DF',
+  accent: C.brand,
 
   // Surfaces
-  background: '#F5F6F8',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F0F1F4',
+  background: C.bg,
+  surface: C.surface,
+  surfaceAlt: palette.canvas,
 
   // Text
-  text: '#101828',
-  textLight: '#475467',
-  textMuted: '#94989E',
-  textOnDark: '#FFFFFF',
+  text: C.text,
+  textLight: C.textMuted,
+  textMuted: C.textSubtle,
+  textOnDark: palette.white,
 
   // Borders / dividers
-  border: '#E4E6EB',
-  divider: '#EEEFF2',
+  border: C.border,
+  divider: C.divider,
 
   // Status
-  success: '#12B76A',
-  successBg: '#ECFDF3',
-  danger: '#F04438',
-  dangerBg: '#FEF3F2',
-  warning: '#F79009',
-  warningBg: '#FFFAEB',
+  success: C.success,
+  successBg: C.successBg,
+  danger: C.danger,
+  dangerBg: C.dangerBg,
+  warning: C.warning,
+  warningBg: C.warningBg,
 
   // Shadow
-  shadow: '#0D0D29',
+  shadow: palette.ink,
 
   // Misc
-  overlay: 'rgba(13,13,41,0.6)',
+  overlay: C.overlay,
 } as const;
 
 export type ColorToken = keyof typeof Colors;

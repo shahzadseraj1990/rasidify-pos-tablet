@@ -82,7 +82,7 @@ export default function ReceiptPreviewScreen() {
         <ReceiptPrintCapture ref={viewShotRef} receipt={receipt} settings={settings} paperWidth={printer.paperWidth} />
 
         <View style={styles.actionBar}>
-          <TouchableOpacity style={styles.printBtn} onPress={handlePrint} disabled={printing} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.printBtn} onPress={(printing) ? undefined : handlePrint} activeOpacity={0.85}>
             {printing
               ? <ActivityIndicator color="#fff" size="small" />
               : (

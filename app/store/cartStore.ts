@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { CartItem, Customer, OrderType } from '../types';
 import { useTaxStore } from './taxStore';
+import { roundMoney } from '../utils/format';
 
 interface CartState {
   items: CartItem[];
@@ -126,7 +127,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     kitchenRounds: 0,
   }),
 
-  subtotal: () => get().items.reduce((s, i) => s + i.total, 0),
+  // Money is rounded to 2 decimals here so the screen, the amount the cashier
+  // takes and what is saved on the invoice are the same figure (an unrounded
+  // 5.1749… total paid as 5.17 left the order "Partial").
+  subtotal: () => roundMoney(get().items.reduce((s, i) => s + i.total, 0)),
 
   // discount is an absolute amount; totalDiscount() just returns it
   totalDiscount: () => get().discount,
@@ -134,9 +138,9 @@ export const useCartStore = create<CartState>((set, get) => ({
   totalTax: () => {
     const taxRate = useTaxStore.getState().taxRate;
     // Tax on subtotal after discount
-    return Math.max(0, get().subtotal() - get().discount) * taxRate;
+    return roundMoney(Math.max(0, get().subtotal() - get().discount) * taxRate);
   },
 
   // total = (subtotal - discount) + vat
-  grandTotal: () => Math.max(0, get().subtotal() - get().discount) + get().totalTax(),
+  grandTotal: () => roundMoney(Math.max(0, get().subtotal() - get().discount) + get().totalTax()),
 }));

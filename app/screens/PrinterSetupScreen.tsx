@@ -5,6 +5,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
+import { SettingsPage, Button } from '../components/ui';
 import Icon from '../components/Icon';
 import { usePrinterStore } from '../store/printerStore';
 import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
@@ -30,7 +31,7 @@ const TYPES: { key: 'network' | 'bluetooth' | 'usb' | 'sunmi'; label: string; su
   { key: 'sunmi', label: 'Sunmi', sub: 'Built-in', icon: 'tablet-alt' },
 ];
 
-export default function PrinterSetupScreen() {
+export default function PrinterSetupScreen({ embedded }: { embedded?: boolean } = {}) {
   const navigation = useNavigation();
   const printer = usePrinterStore();
   const settings = useReceiptSettingsStore();
@@ -188,20 +189,14 @@ export default function PrinterSetupScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.root}>
-      <ScrollView contentContainerStyle={[styles.body, { paddingTop: 24 + insets.top }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-              <Icon name="chevron-left" size={14} color={Colors.text} />
-            </TouchableOpacity>
-            <Text style={styles.title}>Printer Setup</Text>
-          </View>
-          <TouchableOpacity style={styles.saveBtn} onPress={save}>
-            <Text style={styles.saveBtnText}>{saved ? '✓ Saved' : 'Save'}</Text>
-          </TouchableOpacity>
-        </View>
-
+    <SettingsPage
+      title="Printers"
+      subtitle="Receipt printer connected to this device"
+      embedded={embedded}
+      scroll={false}
+      right={<Button size="sm" label={saved ? 'Saved' : 'Save'} icon={saved ? 'check' : undefined} onPress={save} />}
+    >
+      <ScrollView contentContainerStyle={embedded ? undefined : styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.columns}>
           <View style={styles.leftCol}>
             <Label>Printer Type</Label>
@@ -228,7 +223,7 @@ export default function PrinterSetupScreen() {
               <Text style={styles.widthNote}>80mm — most countertop printers. 58mm — Sunmi V2, handheld devices.</Text>
             </View>
 
-            <TouchableOpacity style={[styles.testBtn, testing && { opacity: 0.6 }]} onPress={handleTestPrint} disabled={testing}>
+            <TouchableOpacity style={[styles.testBtn, testing && { opacity: 0.6 }]} onPress={(testing) ? undefined : handleTestPrint}>
               {testing
                 ? <ActivityIndicator color="#fff" size="small" />
                 : (
@@ -304,7 +299,7 @@ export default function PrinterSetupScreen() {
                     </View>
                   ) : null}
 
-                  <TouchableOpacity style={styles.scanBtn} onPress={handleScanBluetooth} disabled={scanningBt}>
+                  <TouchableOpacity style={styles.scanBtn} onPress={(scanningBt) ? undefined : handleScanBluetooth}>
                     {scanningBt
                       ? <ActivityIndicator color={Colors.primary} size="small" />
                       : (
@@ -353,7 +348,7 @@ export default function PrinterSetupScreen() {
                     </View>
                   ) : null}
 
-                  <TouchableOpacity style={styles.scanBtn} onPress={handleScanUsb} disabled={loadingUsb}>
+                  <TouchableOpacity style={styles.scanBtn} onPress={(loadingUsb) ? undefined : handleScanUsb}>
                     {loadingUsb
                       ? <ActivityIndicator color={Colors.primary} size="small" />
                       : (
@@ -452,7 +447,7 @@ export default function PrinterSetupScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SettingsPage>
   );
 }
 

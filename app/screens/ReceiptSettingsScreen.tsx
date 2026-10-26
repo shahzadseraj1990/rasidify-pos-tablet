@@ -3,12 +3,13 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
+import { SettingsPage } from '../components/ui';
 import Icon from '../components/Icon';
 import { useReceiptSettingsStore } from '../store/receiptSettingsStore';
 import { useAuthStore } from '../store/authStore';
 import { useSessionStore, getStoreInfo } from '../store/sessionStore';
 
-export default function ReceiptSettingsScreen() {
+export default function ReceiptSettingsScreen({ embedded }: { embedded?: boolean } = {}) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const s = useReceiptSettingsStore();
@@ -25,18 +26,7 @@ export default function ReceiptSettingsScreen() {
   }
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Icon name="chevron-left" size={14} color={Colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Receipt Settings</Text>
-        </View>
-        <TouchableOpacity style={styles.saveBtn} onPress={save}>
-          <Text style={styles.saveBtnText}>{saved ? '✓ Saved' : 'Done'}</Text>
-        </TouchableOpacity>
-      </View>
+    <SettingsPage title="Receipt" subtitle="Logo, QR code, footer and print mode" embedded={embedded} scroll={false} right={<TouchableOpacity style={styles.saveBtn} onPress={save}> <Text style={styles.saveBtnText}>{saved ? '✓ Saved' : 'Done'}</Text> </TouchableOpacity>}>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.columns}>
@@ -58,6 +48,15 @@ export default function ReceiptSettingsScreen() {
             <Label>Print Behavior</Label>
             <View style={styles.card}>
               <ToggleRow label="Auto-print after payment" sub="Automatically print receipt when payment completes" value={s.autoPrintOnComplete} onChange={v => s.update({ autoPrintOnComplete: v })} />
+            </View>
+
+            <Label>Kitchen Receipt</Label>
+            <View style={styles.card}>
+              <TemplateRow label="Off" sub="Print the customer receipt only." active={(s.kitchenReceipt ?? 'off') === 'off'} onPress={() => s.update({ kitchenReceipt: 'off' })} />
+              <View style={styles.divider} />
+              <TemplateRow label="Kitchen ticket only" sub="Print the kitchen ticket instead of the customer receipt (same as web POS “Print Kitchen”)." active={s.kitchenReceipt === 'kitchen'} onPress={() => s.update({ kitchenReceipt: 'kitchen' })} />
+              <View style={styles.divider} />
+              <TemplateRow label="Customer receipt + kitchen ticket" sub="Print the customer receipt, then the kitchen ticket (items, options, notes, table — no prices)." active={s.kitchenReceipt === 'both'} onPress={() => s.update({ kitchenReceipt: 'both' })} />
             </View>
 
             <Label>Display Options</Label>
@@ -98,7 +97,7 @@ export default function ReceiptSettingsScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SettingsPage>
   );
 }
 

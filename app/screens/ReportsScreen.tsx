@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
-import { Colors } from '../utils/colors';
-import Icon from '../components/Icon';
+import { View, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { C, F } from '../theme/tokens';
+import { Txt, Button, Card, PageHeader, StatCard, KeyValue, BarRow, EmptyState } from '../components/ui';
 import Money from '../components/Money';
 import { useShiftStore } from '../store/shiftStore';
 import { useAuthStore } from '../store/authStore';
@@ -23,21 +23,23 @@ interface ShiftSummary {
   startedAt: string;
 }
 interface PaymentBreak { paymentMethod: string; total: number; txCount: number; }
-interface OrderTypeBreak { orderType: string; count: number; total: number; }
+interface OrderTypeBreak { orderType: string; count?: number; orderCount?: number; txCount?: number; total: number; }
+// The summary API's count field name isn't fixed (count / orderCount / …):
+// take the first numeric field whose name mentions count.
+const typeCount = (o: OrderTypeBreak) => {
+  const k = Object.keys(o).find(key => /count/i.test(key) && typeof (o as any)[key] === 'number');
+  return k ? Number((o as any)[k]) : 0;
+};
 
-function KpiCard({ label, value, color, icon }: { label: string; value: React.ReactNode; color?: string; icon: string }) {
-  return (
-    <View style={styles.kpiCard}>
-      <View style={[styles.kpiIconWrap, color ? { backgroundColor: color + '22' } : null]}>
-        <Icon name={icon} size={14} color={color ?? Colors.textMuted} />
-      </View>
-      <Text style={styles.kpiLabel}>{label}</Text>
-      <Text style={[styles.kpiValue, color ? { color } : null]}>{value}</Text>
-    </View>
-  );
+function openFor(startedAt?: string): string {
+  const ms = startedAt ? Date.now() - new Date(startedAt).getTime() : NaN;
+  if (isNaN(ms) || ms < 0) return '';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `Open for ${h} h ${String(m).padStart(2, '0')} min`;
 }
 
-export default function ReportsScreen() {
+export default function ReportsScreen({ onEndShift }: { onEndShift?: () => void }) {
   const shift = useShiftStore(s => s.activeShift);
   const user = useAuthStore(s => s.user);
   const currency = user?.currency ?? 'SAR';
@@ -77,158 +79,111 @@ export default function ReportsScreen() {
     loadSummary();
   }
 
-  function methodColor(m: string) {
-    const n = (m ?? '').toLowerCase();
-    if (n.includes('cash')) return { bg: '#D1FAE5', text: '#059669' };
-    if (n.includes('card') || n.includes('bank')) return { bg: '#DBEAFE', text: '#2563EB' };
-    return { bg: Colors.surfaceAlt, text: Colors.textLight };
-  }
-
   const avgOrder = summary && summary.orderCount > 0 ? summary.totalSales / summary.orderCount : 0;
   const cashRevenue = payments.find(p => p.paymentMethod?.toLowerCase().includes('cash'))?.total ?? 0;
+  const payTotal = payments.reduce((s, p) => s + Number(p.total ?? 0), 0);
+  const typeMax = Math.max(0, ...orderTypes.map(o => Number(o.total ?? 0)));
+  const started = summary?.startedAt ? new Date(summary.startedAt) : null;
 
   return (
     <View style={styles.root}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Shift Report</Text>
-        <TouchableOpacity style={styles.refreshBtn} onPress={onRefresh} disabled={loading}>
-          <Icon name="redo" size={13} color={Colors.primaryDark} />
-        </TouchableOpacity>
-      </View>
+      <PageHeader
+        title="Shift report"
+        subtitle={shiftID ? [
+          `Shift #${shiftID}`,
+          summary?.cashierName,
+          started ? `Started ${started.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null,
+          openFor(summary?.startedAt),
+        ].filter(Boolean).join(' · ') : undefined}
+        right={<>
+          <Button variant="outline" icon="refresh" label="Refresh" onPress={onRefresh} disabled={loading || !shiftID} />
+          {shiftID && onEndShift ? <Button variant="dark" label="End shift" onPress={onEndShift} /> : null}
+        </>}
+      />
 
       {!shiftID ? (
-        <View style={styles.center}>
-          <Icon name="chart-bar" size={28} color={Colors.textMuted} />
-          <Text style={styles.noShiftText}>No active shift</Text>
-        </View>
+        <EmptyState title="No active shift" subtitle="Start a shift to see its report." icon="reports" />
       ) : loading && !refreshing ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={C.brand} /></View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.scroll}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brand} />}
           showsVerticalScrollIndicator={false}
         >
-          {summary && (
-            <View style={styles.shiftInfo}>
-              <Text style={styles.shiftInfoTitle}>{summary.branchName || 'Branch'}</Text>
-              <Text style={styles.shiftInfoSub}>Cashier: {summary.cashierName}</Text>
-              {summary.startedAt && <Text style={styles.shiftInfoSub}>Started: {new Date(summary.startedAt).toLocaleString()}</Text>}
-            </View>
-          )}
-
-          <Text style={styles.sectionTitle}>Sales Summary</Text>
-          <View style={styles.kpiGrid}>
-            <KpiCard label="Total Sales" value={<Money amount={summary?.totalSales} currency={currency} style={[styles.kpiValue, { color: Colors.success }]} />} color={Colors.success} icon="coins" />
-            <KpiCard label="Orders" value={String(summary?.orderCount ?? 0)} icon="receipt" />
-            <KpiCard label="Avg Order" value={<Money amount={avgOrder} currency={currency} style={styles.kpiValue} />} icon="chart-line" />
-            <KpiCard label="Total Tax" value={<Money amount={summary?.totalTax} currency={currency} style={[styles.kpiValue, { color: Colors.primary }]} />} color={Colors.primary} icon="percentage" />
-            <KpiCard label="Discount" value={<Money amount={summary?.totalDiscount} currency={currency} style={[styles.kpiValue, { color: Colors.warning }]} />} color={Colors.warning} icon="tag" />
-            <KpiCard label="Refunds" value={<Money amount={summary?.totalRefunds} currency={currency} style={[styles.kpiValue, { color: Colors.danger }]} />} color={Colors.danger} icon="undo" />
+          <View style={styles.kpis}>
+            <StatCard label="Total sales" amount={summary?.totalSales ?? 0} currency={currency} caption={`Incl. VAT ${(summary?.totalTax ?? 0).toFixed(2)}`} />
+            <StatCard label="Orders" value={String(summary?.orderCount ?? 0)} caption={summary?.branchName || undefined} />
+            <StatCard label="Average order" amount={avgOrder} currency={currency} caption="Per paid order" />
+            <StatCard
+              label="Discounts and refunds"
+              amount={(summary?.totalDiscount ?? 0) + (summary?.totalRefunds ?? 0)}
+              currency={currency}
+              caption={`Discounts ${(summary?.totalDiscount ?? 0).toFixed(2)} · Refunds ${(summary?.totalRefunds ?? 0).toFixed(2)}`}
+            />
           </View>
 
-          <Text style={styles.sectionTitle}>Cash Drawer</Text>
-          <View style={styles.card}>
-            <Row label="Opening Cash" value={<Money amount={summary?.openingCash} currency={currency} style={styles.rowValue} />} />
-            <Row label="Cash Sales" value={<Money amount={cashRevenue} currency={currency} style={styles.rowValue} />} />
-            <Row label="Paid In" value={<Money amount={summary?.totalPaidIn} currency={currency} style={styles.rowValue} />} />
-            <Row label="Paid Out" value={<Money amount={summary?.totalPaidOut} currency={currency} style={[styles.rowValue, { color: Colors.danger }]} prefix="− " />} valueColor={Colors.danger} />
-            <View style={styles.divider} />
-            <Row label="Expected Cash" value={<Money amount={summary?.expectedCash} currency={currency} style={[styles.rowValue, styles.rowValueBold]} />} bold />
-          </View>
+          <View style={styles.columns}>
+            <Card style={styles.wide}>
+              <Txt variant="title" weight="bold">Sales by order type</Txt>
+              {orderTypes.length === 0 ? (
+                <Txt variant="caption" color={C.textMuted}>No orders yet.</Txt>
+              ) : orderTypes.map((ot, i) => (
+                <BarRow
+                  key={i}
+                  label={ot.orderType || 'Walk-in'}
+                  ratio={typeMax > 0 ? Number(ot.total ?? 0) / typeMax : 0}
+                  count={`${typeCount(ot)} order${typeCount(ot) !== 1 ? 's' : ''}`}
+                  amount={ot.total}
+                  currency={currency}
+                />
+              ))}
+            </Card>
 
-          {payments.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>Payment Methods</Text>
-              <View style={styles.card}>
-                {payments.map((p, i) => {
-                  const mc = methodColor(p.paymentMethod);
-                  return (
-                    <View key={i} style={[styles.payRow, i < payments.length - 1 && styles.payRowBorder]}>
-                      <View style={[styles.methodBadge, { backgroundColor: mc.bg }]}>
-                        <Text style={[styles.methodText, { color: mc.text }]}>{p.paymentMethod}</Text>
-                      </View>
-                      <View style={styles.payRight}>
-                        <Text style={styles.payCount}>{p.txCount} txn{p.txCount !== 1 ? 's' : ''}</Text>
-                        <Money amount={p.total} currency={currency} style={styles.payTotal} />
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </>
-          )}
+            <View style={styles.narrow}>
+              <Card>
+                <Txt variant="title" weight="bold" style={styles.cardTitle}>Cash drawer</Txt>
+                <KeyValue label="Opening cash" value={<Money amount={summary?.openingCash} currency={currency} style={styles.kv} />} />
+                <KeyValue label="Cash sales" value={<Money amount={cashRevenue} currency={currency} style={styles.kv} />} />
+                <KeyValue label="Paid in" value={<Money amount={summary?.totalPaidIn} currency={currency} style={styles.kv} />} />
+                <KeyValue label="Paid out" value={<Money amount={summary?.totalPaidOut} currency={currency} prefix="− " style={[styles.kv, { color: C.dangerText }]} />} />
+                <KeyValue strong label="Expected in drawer" value={<Money amount={summary?.expectedCash} currency={currency} style={styles.kvStrong} />} divider={false} />
+              </Card>
 
-          {orderTypes.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>By Order Type</Text>
-              <View style={styles.card}>
-                {orderTypes.map((ot, i) => (
-                  <View key={i} style={[styles.payRow, i < orderTypes.length - 1 && styles.payRowBorder]}>
-                    <Text style={styles.otName}>{ot.orderType || 'Walk-in'}</Text>
-                    <View style={styles.payRight}>
-                      <Text style={styles.payCount}>{ot.count} order{ot.count !== 1 ? 's' : ''}</Text>
-                      <Money amount={ot.total} currency={currency} style={styles.payTotal} />
-                    </View>
-                  </View>
+              <Card style={styles.payCard}>
+                <Txt variant="title" weight="bold">Payment methods</Txt>
+                {payments.length === 0 ? (
+                  <Txt variant="caption" color={C.textMuted}>No payments yet.</Txt>
+                ) : payments.map((p, i) => (
+                  <BarRow
+                    key={i}
+                    stacked
+                    label={p.paymentMethod}
+                    sub={payTotal > 0 ? `${Math.round((Number(p.total ?? 0) / payTotal) * 100)}% · ${p.txCount} txn${p.txCount !== 1 ? 's' : ''}` : undefined}
+                    ratio={payTotal > 0 ? Number(p.total ?? 0) / payTotal : 0}
+                    amount={p.total}
+                    currency={currency}
+                  />
                 ))}
-              </View>
-            </>
-          )}
+              </Card>
+            </View>
+          </View>
         </ScrollView>
       )}
     </View>
   );
 }
 
-function Row({ label, value, bold, valueColor }: { label: string; value: React.ReactNode; bold?: boolean; valueColor?: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={[styles.rowLabel, bold && styles.rowLabelBold]}>{label}</Text>
-      <Text style={[styles.rowValue, bold && styles.rowValueBold, valueColor ? { color: valueColor } : null]}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 16, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  title: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  refreshBtn: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  noShiftText: { fontSize: 14, color: Colors.textMuted, fontWeight: '600' },
-
-  scroll: { padding: 24, paddingBottom: 48, maxWidth: 900, width: '100%', alignSelf: 'center' },
-
-  shiftInfo: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.border },
-  shiftInfoTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 4 },
-  shiftInfoSub: { fontSize: 13, color: Colors.textLight, marginTop: 2 },
-
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 20 },
-
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  kpiCard: { flexBasis: '31%', flexGrow: 1, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border },
-  kpiIconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  kpiLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
-  kpiValue: { fontSize: 19, fontWeight: '800', color: Colors.text, marginTop: 4 },
-
-  card: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 16, paddingVertical: 6 },
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: 4 },
-
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  rowLabel: { fontSize: 13, color: Colors.textLight, fontWeight: '500' },
-  rowLabelBold: { fontWeight: '700', color: Colors.text, fontSize: 14 },
-  rowValue: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  rowValueBold: { fontSize: 14, fontWeight: '800' },
-
-  payRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
-  payRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.background },
-  methodBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  methodText: { fontSize: 13, fontWeight: '700' },
-  payRight: { alignItems: 'flex-end', gap: 2 },
-  payCount: { fontSize: 11, color: Colors.textMuted },
-  payTotal: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  otName: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  root: { flex: 1, backgroundColor: C.bg, padding: 24, paddingBottom: 0, gap: 16 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scroll: { gap: 16, paddingBottom: 24 },
+  kpis: { flexDirection: 'row', gap: 14 },
+  columns: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
+  wide: { flex: 1.45, gap: 12 },
+  narrow: { flex: 1, gap: 14 },
+  cardTitle: { marginBottom: 4 },
+  payCard: { gap: 12 },
+  kv: { fontSize: 14, fontFamily: F.bold, color: C.text },
+  kvStrong: { fontSize: 20, fontFamily: F.bold, color: C.text },
 });

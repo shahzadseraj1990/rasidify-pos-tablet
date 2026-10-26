@@ -15,6 +15,7 @@ import { PAY_FINAL } from '../kds-link/protocol';
 import type { TicketItem } from '../kds-link/protocol';
 import RiyalIcon from '../components/RiyalIcon';
 import { ReceiptPaper, ReceiptPrintCapture } from '../components/receipt/ReceiptPaper';
+import { KitchenTicketPrintCapture } from '../components/receipt/KitchenTicketPaper';
 import { orderService } from '../services/orderService';
 import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
@@ -33,13 +34,18 @@ import { useBarcodeHandler } from '../hooks/useBarcodeHandler';
 import { useBarcodeScannerCapture } from '../providers/BarcodeScannerProvider';
 import { buildSimpleReceipt } from '../services/escpos/ReceiptBuilder';
 import { printReceipt } from '../services/PrinterService';
-import { printReceiptNow } from '../services/receiptPrintFlow';
+import { printReceiptNow, printKitchenTicketNow } from '../services/receiptPrintFlow';
 import { posApi } from '../services/api';
 import { useSessionStore, getStoreInfo, storeFields } from '../store/sessionStore';
 import { zatcaPhase1Qr } from '../utils/zatcaPhase1Qr';
 import { DEV_MOCK_PRODUCTS, DEV_MOCK_CATEGORIES } from '../utils/devBypass';
 import { productCatalogService } from '../services/productCatalogService';
 import ProductOptionsModal from '../components/ProductOptionsModal';
+import { C, F } from '../theme/tokens';
+import { Txt, Glyph, BrandMark, orderTypeGlyph, Button, IconButton, ActionTile, CountBadge, Avatar, Segmented, Field, Dialog, Numpad, NumDisplay } from '../components/ui';
+import { CategoryGrid, ProductGrid, GRID_COLUMNS, GRID_GAP } from '../components/sell/Catalog';
+import CartLine, { CartLineHandlers } from '../components/sell/CartLine';
+import PaymentModal from '../components/sell/PaymentModal';
 import TableSelectScreen from '../components/TableSelectScreen';
 import ProductSearchPanel, { searchProducts } from '../components/ProductSearchPanel';
 import { useSearchHistoryStore } from '../store/searchHistoryStore';
@@ -51,20 +57,6 @@ const ORDER_TYPE_FALLBACK = [
   { id: -2, name: 'Walk-in' },
   { id: -3, name: 'Delivery' },
 ];
-// Used only if the session bootstrap has no payment methods. The real list
-// comes from the server so each payment is saved with the right method ID
-// (orderService matches the method by its exact name).
-const FALLBACK_PAYMENT_METHODS = ['Cash', 'Card'];
-
-function paymentIcon(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes('cash') || n.includes('نقد')) return 'money-bill-wave';
-  if (n.includes('card') || n.includes('mada') || n.includes('visa') || n.includes('credit') || n.includes('debit')) return 'credit-card';
-  if (n.includes('bank') || n.includes('transfer')) return 'university';
-  if (n.includes('wallet')) return 'wallet';
-  if (n.includes('apple') || n.includes('stc') || n.includes('pay')) return 'mobile-alt';
-  return 'money-check-alt';
-}
 
 // The cashier enters what the customer handed over; only the bill amount is
 // a payment. The excess (change) comes off cash rows first, then the rest,
@@ -102,6 +94,8 @@ export default function SellScreen({ navigation }: Props) {
   const addSearchTerm = useSearchHistoryStore(s => s.add);
   const [gridWidth, setGridWidth] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
+  // Redesign: category cards first, then that category's products.
+  const [catalogView, setCatalogView] = useState<'cats' | 'products'>('cats');
   const [discountPct, setDiscountPct] = useState(0);
   const [discountMode, setDiscountMode] = useState<'preset' | 'custom'>('preset');
   const [customDiscountVisible, setCustomDiscountVisible] = useState(false);
@@ -145,7 +139,12 @@ export default function SellScreen({ navigation }: Props) {
   // print directly (no visible preview screen) while that mode still has a
   // rendered receipt to screenshot. See app/components/receipt/ReceiptPaper.tsx.
   const printViewShotRef = useRef<ViewShotRef>(null);
+  const kitchenShotRef = useRef<ViewShotRef>(null);
   const [printCaptureReceipt, setPrintCaptureReceipt] = useState<ReceiptData | null>(null);
+  // Auto-print off: the paid order stays on the checkout's "Payment complete"
+  // view (Print receipt / New order) instead of closing straight away.
+  const [paidOrder, setPaidOrder] = useState<{ data: ReceiptData; payments: number; kicker?: string } | null>(null);
+  const [printingPaid, setPrintingPaid] = useState(false);
 
   useEffect(() => {
     if (!usePosSettingsStore.getState().loaded) usePosSettingsStore.getState().load();
@@ -544,7 +543,6 @@ export default function SellScreen({ navigation }: Props) {
   };
   const backspaceCustomDigit = () => setCustomDiscountValue(prev => prev.slice(0, -1));
 
-  const openQtyEdit = (item: CartItem) => { setQtyEditItem(item); setQtyEditValue(String(item.qty)); };
   const appendQtyDigit = (d: string) => setQtyEditValue(prev => (prev === '0' ? d : prev + d));
   const backspaceQtyDigit = () => setQtyEditValue(prev => prev.slice(0, -1));
   const applyQtyEdit = () => {
@@ -555,14 +553,48 @@ export default function SellScreen({ navigation }: Props) {
     setQtyEditItem(null);
   };
 
-  const GRID_COLUMNS = 6;
-  const GRID_GAP = 14;
-  const contentWidth = gridWidth != null ? gridWidth - 40 : undefined; // `left` has 20px horizontal padding on each side
-  const itemWidth = contentWidth != null ? (contentWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS : undefined;
+  // Prints a receipt (both print modes): the hidden ReceiptPaper must render
+  // this order before Image Canvas mode captures it.
+  // Prints after payment, following Receipt settings → Kitchen receipt:
+  // off = customer receipt; kitchen = kitchen ticket only (web POS "Print
+  // Kitchen"); both = customer receipt, then the kitchen ticket.
+  const printReceiptData = async (data: ReceiptData) => {
+    const mode = receiptSettings.kitchenReceipt ?? 'off';
+    setPrintCaptureReceipt(data);
+    if (receiptSettings.printMode === 'image') {
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    }
+    if (mode === 'kitchen') return printKitchenTicketNow(data, receiptSettings, printer, kitchenShotRef);
+    const result = await printReceiptNow(data, receiptSettings, printer, printViewShotRef);
+    if (mode === 'both' && result.success) {
+      const kitchen = await printKitchenTicketNow(data, receiptSettings, printer, kitchenShotRef);
+      if (!kitchen.success) return { success: false, error: `Kitchen ticket: ${kitchen.error}` };
+    }
+    return result;
+  };
 
-  // Grid perf: one qty map per cart change (not a filter per card), and a
-  // stable onPress so memoized ProductCards only re-render when their own
-  // qty changes — a tap no longer redraws every card in the grid.
+  const printPaidReceipt = async () => {
+    if (!paidOrder || printingPaid) return;
+    if (!printer.isConfigured) {
+      appAlert('Printer Not Configured', 'Set up a printer first in Menu → Printers.');
+      return;
+    }
+    setPrintingPaid(true);
+    const result = await printReceiptData(paidOrder.data);
+    setPrintingPaid(false);
+    if (result.success) toast('Receipt printed', 'success');
+    else appAlert('Print Failed', result.error);
+  };
+
+  const startNewOrder = () => { setPaidOrder(null); setPaymentVisible(false); };
+
+  const orderKicker = [cart.tableNo ? `Table ${cart.tableNo}` : null, orderTypes.find(t => t.id === cart.orderTypeID)?.name].filter(Boolean).join(' · ') || undefined;
+
+  const cellWidth = gridWidth != null ? (gridWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS : undefined;
+
+  // Grid perf: one qty map per cart change (not a filter per card), and
+  // stable callbacks so memoized cards/lines only re-render when their own
+  // data changes — a tap no longer redraws the whole grid or order list.
   const qtyByProduct = useMemo(() => {
     const m = new Map<number, number>();
     for (const i of cart.items) m.set(i.productID, (m.get(i.productID) ?? 0) + i.qty);
@@ -571,38 +603,31 @@ export default function SellScreen({ navigation }: Props) {
   const addProductRef = useRef(addProductToCart);
   addProductRef.current = addProductToCart;
   const onProductPress = useCallback((p: Product) => { addProductRef.current(p); }, []);
-  const renderProduct = useCallback(({ item }: { item: Product }) => (
-    <ProductCard
-      product={item}
-      qtyInCart={qtyByProduct.get(item.productID) ?? 0}
-      onPress={onProductPress}
-      width={itemWidth}
-      currency={currency}
-    />
-  ), [qtyByProduct, onProductPress, itemWidth, currency]);
+  const pickCategory = useCallback((id: number | null) => { setActiveCategory(id); setCatalogView('products'); }, []);
+  const backToCategories = useCallback(() => setCatalogView('cats'), []);
+  const lineHandlers = useMemo<CartLineHandlers>(() => ({
+    onDec: i => useCartStore.getState().updateQty(i.lineID, i.qty - 1),
+    onInc: i => useCartStore.getState().updateQty(i.lineID, i.qty + 1),
+    onEditQty: i => { setQtyEditItem(i); setQtyEditValue(String(i.qty)); },
+    onRemove: i => useCartStore.getState().removeItem(i.lineID),
+    onEditNote: i => { setItemNoteDraft(i.kitchenNote ?? ''); setItemNoteLine(i.lineID); },
+  }), []);
+
+  const itemCount = cart.items.reduce((s, i) => s + i.qty, 0);
+  const hasItems = cart.items.length > 0;
+  const discountTotal = cart.totalDiscount();
+  const customerName = cart.customer ? (cart.customer.businessName || cart.customer.name) : null;
+  const activeCategoryName = activeCategory == null ? 'All items' : categories.find(c => c.categoryID === activeCategory)?.name ?? 'Products';
 
   return (
     <View style={styles.root}>
-      <View style={styles.left} onLayout={e => setGridWidth(e.nativeEvent.layout.width)}>
-        <View style={styles.categoryRow}>
-          <CategoryPill label="All" active={activeCategory == null} onPress={() => setActiveCategory(null)} />
-          {categories.map(c => (
-            <CategoryPill
-              key={c.categoryID}
-              label={c.name}
-              active={activeCategory === c.categoryID}
-              onPress={() => setActiveCategory(c.categoryID)}
-            />
-          ))}
-        </View>
-
-        <View style={[styles.searchWrap, searchOpen && styles.searchWrapActive]}>
-          <Icon name="search" size={16} color={searchOpen ? Colors.primary : Colors.textMuted} />
-          <TextInput
+      <View style={styles.main}>
+        <View style={styles.searchRow}>
+          <Field
             ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder="Search products by name, SKU or barcode..."
-            placeholderTextColor={Colors.textMuted}
+            icon="search"
+            containerStyle={[styles.searchField, searchOpen && styles.searchFieldOn]}
+            placeholder="Search by name, SKU or barcode"
             value={search}
             onChangeText={setSearch}
             onFocus={() => { pauseCapture(); setSearchOpen(true); }}
@@ -612,350 +637,213 @@ export default function SellScreen({ navigation }: Props) {
             submitBehavior="submit"
             autoCorrect={false}
             autoCapitalize="none"
+            right={searchOpen ? <IconButton icon="close" onPress={closeSearch} size={36} variant="ghost" iconSize={18} /> : null}
           />
-          {searchOpen && (
-            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.searchCloseBtn}>
-              <Icon name="times" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          )}
+          {/* The hardware scanner always listens; this closes search so scans go straight to the order. */}
+          <IconButton icon="scan" onPress={closeSearch} size={56} iconSize={24} />
         </View>
 
-        <View style={{ flex: 1 }}>
-        {!productsLoaded ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} />
-        ) : (
-          <FlatList
-            data={filteredProducts}
-            keyExtractor={p => String(p.productID)}
-            numColumns={6}
-            key="grid-6"
-            contentContainerStyle={styles.grid}
-            columnWrapperStyle={{ gap: 14 }}
-            ItemSeparatorComponent={GridSeparator}
-            renderItem={renderProduct}
-            ListEmptyComponent={<Text style={styles.emptyText}>No products found.</Text>}
-          />
-        )}
-        {searchOpen && (
-          <ProductSearchPanel
-            query={search}
-            products={products}
-            currency={currency}
-            qtyInCart={id => qtyByProduct.get(id) ?? 0}
-            onSelectProduct={selectSearchResult}
-            onSelectTerm={t => { setSearch(t); searchInputRef.current?.focus(); }}
-            onClose={closeSearch}
-          />
-        )}
+        <View style={styles.catalog} onLayout={e => setGridWidth(e.nativeEvent.layout.width)}>
+          {!productsLoaded ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={C.brand} />
+          ) : catalogView === 'cats' ? (
+            <CategoryGrid categories={categories} products={products} cellWidth={cellWidth} onPick={pickCategory} />
+          ) : (
+            <ProductGrid
+              products={filteredProducts}
+              qtyByProduct={qtyByProduct}
+              cellWidth={cellWidth}
+              currency={currency}
+              backLabel={activeCategoryName}
+              onBack={backToCategories}
+              onAdd={onProductPress}
+            />
+          )}
+          {searchOpen && (
+            <ProductSearchPanel
+              query={search}
+              products={products}
+              currency={currency}
+              qtyInCart={id => qtyByProduct.get(id) ?? 0}
+              onSelectProduct={selectSearchResult}
+              onSelectTerm={t => { setSearch(t); searchInputRef.current?.focus(); }}
+              onClose={closeSearch}
+            />
+          )}
         </View>
       </View>
 
-      <View style={styles.right}>
-        <View style={styles.orderTypeRow}>
-          {orderTypes.map(t => (
-            <TouchableOpacity
-              key={t.id}
-              style={[styles.orderTypeTab, cart.orderTypeID === t.id && styles.orderTypeTabActive]}
-              onPress={() => cart.setOrderType(t.id)}
-            >
-              <Text style={[styles.orderTypeText, cart.orderTypeID === t.id && styles.orderTypeTextActive]}>{t.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {isRestaurant && cart.tableNo && (
-          <TouchableOpacity style={styles.customerRow} onPress={() => setTablePickerVisible(true)}>
-            <View style={styles.customerAvatar}>
-              <Icon name="chair" size={14} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerName}>Table {cart.tableNo}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.chipCloseBtn}
-              onPress={() => cart.setTable(null, null)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Icon name="times" size={14} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )}
-
-        {cart.customer ? (
-          <TouchableOpacity style={styles.customerRow} onPress={() => setCustomerModalVisible(true)}>
-            <View style={styles.customerAvatar}>
-              <Text style={styles.customerAvatarText}>{(cart.customer.businessName || cart.customer.name || 'W').charAt(0).toUpperCase()}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerName}>{cart.customer.businessName || cart.customer.name}</Text>
-              {cart.customer.phone ? <Text style={styles.customerPhone}>{cart.customer.phone}</Text> : null}
-            </View>
-            <TouchableOpacity style={styles.chipCloseBtn} onPress={() => cart.setCustomer(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="times" size={14} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.customerPickerBtn} onPress={() => setCustomerModalVisible(true)}>
-            <Icon name="user-plus" size={14} color={Colors.textLight} />
-            <Text style={styles.customerPickerText}>Select Customer</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.itemsHeader}>
-          <Text style={styles.itemsHeaderText}>ORDER ITEMS</Text>
-          <View style={styles.itemsCountBadge}>
-            <Text style={styles.itemsCountText}>{cart.items.reduce((s, i) => s + i.qty, 0)}</Text>
+      <View style={styles.aside}>
+        <View style={styles.asideTop}>
+          <Segmented
+            stacked
+            options={orderTypes.map(t => ({ key: t.id, label: t.name, icon: orderTypeGlyph(t.name) }))}
+            value={cart.orderTypeID ?? -999}
+            onChange={id => cart.setOrderType(id)}
+          />
+          <View style={styles.asideButtons}>
+            {customerName ? (
+              <TouchableOpacity style={styles.customerChip} onPress={() => setCustomerModalVisible(true)} activeOpacity={0.8}>
+                <Avatar name={customerName} size={32} />
+                <View style={styles.customerText}>
+                  <Txt variant="label" numberOfLines={1}>{customerName}</Txt>
+                  {cart.customer?.phone ? <Txt variant="small" weight="regular" color={C.textMuted} numberOfLines={1}>{cart.customer.phone}</Txt> : null}
+                </View>
+                <IconButton icon="close" onPress={() => cart.setCustomer(null)} size={32} variant="ghost" iconSize={16} />
+              </TouchableOpacity>
+            ) : (
+              <Button variant="dashed" icon="addUser" label="Add customer" onPress={() => setCustomerModalVisible(true)} style={styles.flex} />
+            )}
+            {isRestaurant && (isDineIn || cart.tableNo) ? (
+              <Button variant="outline" label={cart.tableNo ? `Table ${cart.tableNo}` : 'Table'} onPress={() => setTablePickerVisible(true)} />
+            ) : null}
           </View>
-          <View style={{ flex: 1 }} />
-          {cart.items.length > 0 && (
-            <TouchableOpacity onPress={resetOrder}>
-              <Text style={styles.clearText}>Clear</Text>
-            </TouchableOpacity>
-          )}
         </View>
+
+        <View style={styles.orderHead}>
+          <View style={styles.orderTitle}>
+            <Txt variant="title" weight="bold">Order</Txt>
+            <CountBadge value={itemCount} />
+          </View>
+          {hasItems ? <Button variant="ghost" size="sm" label="Clear" onPress={resetOrder} /> : null}
+        </View>
+
+        {cart.orderNote ? (
+          <TouchableOpacity style={styles.orderNote} onPress={() => { setNoteDraft(cart.orderNote); setNoteModalVisible(true); }} activeOpacity={0.8}>
+            <Glyph name="pencil" size={16} color={C.textMuted} strokeWidth={2} />
+            <Txt variant="caption" style={styles.flex} numberOfLines={2}><Txt variant="caption" weight="semibold">Note: </Txt>{cart.orderNote}</Txt>
+          </TouchableOpacity>
+        ) : null}
 
         <FlatList
           data={cart.items}
           keyExtractor={i => i.lineID}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 12 }}
-          ListEmptyComponent={<Text style={styles.emptyCartText}>No items yet. Tap a product to add it.</Text>}
-          renderItem={({ item }) => (
-            <SwipeableCartRow
-              item={item}
-              currency={currency}
-              onDec={() => cart.updateQty(item.lineID, item.qty - 1)}
-              onInc={() => cart.updateQty(item.lineID, item.qty + 1)}
-              onEditQty={() => openQtyEdit(item)}
-              onRemove={() => cart.removeItem(item.lineID)}
-              onEditNote={() => { setItemNoteDraft(item.kitchenNote ?? ''); setItemNoteLine(item.lineID); }}
-              swipeEnabled={swipeToDeleteEnabled}
-            />
-          )}
+          style={styles.lines}
+          contentContainerStyle={!hasItems && styles.linesEmpty}
+          ListEmptyComponent={
+            <View style={styles.emptyOrder}>
+              <BrandMark />
+              <Txt variant="title">No items yet</Txt>
+              <Txt variant="label" weight="regular" color={C.textMuted}>Pick a category or scan to start the order.</Txt>
+            </View>
+          }
+          renderItem={({ item }) => <CartLine item={item} currency={currency} on={lineHandlers} swipeEnabled={swipeToDeleteEnabled} />}
         />
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, cart.totalDiscount() > 0 && styles.actionBtnActive]}
-            onPress={() => setCustomDiscountVisible(true)}
-            disabled={cart.items.length === 0}
-          >
-            <Icon name="tag" size={14} color={cart.totalDiscount() > 0 ? '#fff' : Colors.textLight} />
-            <Text style={[styles.actionBtnText, cart.totalDiscount() > 0 && styles.actionBtnTextActive]}>Discount</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={handlePrintBill} disabled={printingBill || cart.items.length === 0}>
-            {printingBill
-              ? <ActivityIndicator size="small" color={Colors.textLight} />
-              : <><Icon name="print" size={14} color={Colors.textLight} /><Text style={styles.actionBtnText}>Print Bill</Text></>}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => { setNoteDraft(cart.orderNote); setNoteModalVisible(true); }}>
-            <Icon name="edit" size={14} color={Colors.textLight} />
-            <Text style={styles.actionBtnText}>{cart.orderNote ? 'Edit Note' : 'Add Note'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.holdBtn} onPress={handleHold} disabled={holding || cart.items.length === 0}>
-            {holding
-              ? <ActivityIndicator size="small" color={Colors.warning} />
-              : <><Icon name="pause" size={14} color={Colors.warning} /><Text style={styles.holdBtnText}>Hold</Text></>}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.totalsBox}>
-          <TotalRow label="Subtotal" value={<Money amount={cart.subtotal()} currency={currency} style={styles.totalValue} />} />
-          <TotalRow label="Discount" value={<Money amount={cart.totalDiscount()} currency={currency} style={[styles.totalValue, { color: Colors.danger }]} prefix="- " />} danger />
-          <TotalRow label="VAT" value={<Money amount={cart.totalTax()} currency={currency} style={styles.totalValue} />} />
-        </View>
-
-        <View style={styles.payRow}>
-          <TouchableOpacity
-            style={[styles.checkoutBtn, cart.items.length === 0 && styles.payBtnDisabled]}
-            disabled={cart.items.length === 0}
-            onPress={() => setPaymentVisible(true)}
-          >
-            <Icon name="credit-card" size={17} color="#fff" />
-            <Text style={styles.payBtnText}>Checkout ({cart.grandTotal().toFixed(2)})</Text>
-          </TouchableOpacity>
+        <View style={styles.asideFoot}>
+          <View style={styles.tiles}>
+            <ActionTile icon="percent" label="Discount" tone="brand" onPress={() => setCustomDiscountVisible(true)} disabled={!hasItems} />
+            <ActionTile icon="pencil" label={cart.orderNote ? 'Edit note' : 'Note'} tone="plain" onPress={() => { setNoteDraft(cart.orderNote); setNoteModalVisible(true); }} />
+            <ActionTile icon="pause" label={holding ? 'Holding…' : 'Hold'} tone="warning" onPress={handleHold} disabled={holding || !hasItems} />
+            <ActionTile icon="printer" label={printingBill ? 'Printing…' : 'Print bill'} tone="info" onPress={handlePrintBill} disabled={printingBill || !hasItems} />
+          </View>
+          <View style={styles.totals}>
+            <View style={styles.sumRow}>
+              <Txt variant="label" weight="regular" color={C.textMuted}>Subtotal</Txt>
+              <Money amount={cart.subtotal()} currency={currency} style={styles.totalMuted} />
+            </View>
+            {discountTotal > 0 ? (
+              <View style={styles.sumRow}>
+                <Txt variant="label" weight="semibold" color={C.brand}>Discount</Txt>
+                <Money amount={discountTotal} currency={currency} prefix="− " style={styles.totalDiscount} />
+              </View>
+            ) : null}
+            <View style={styles.sumRow}>
+              <Txt variant="label" weight="regular" color={C.textMuted}>{taxName ? `${taxName}${taxPercent ? ` (${taxPercent}%)` : ''}` : 'VAT'}</Txt>
+              <Money amount={cart.totalTax()} currency={currency} style={styles.totalMuted} />
+            </View>
+            <View style={[styles.sumRow, styles.grandRow]}>
+              <Txt variant="title">Total</Txt>
+              <Money amount={cart.grandTotal()} currency={currency} style={styles.grand} />
+            </View>
+          </View>
+          <Button size="xl" icon="card" label="Pay" disabled={!hasItems} onPress={() => setPaymentVisible(true)} />
         </View>
       </View>
 
-      <Modal
+      <Dialog
         visible={customDiscountVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setCustomDiscountVisible(false)}
-        onShow={() => { setCustomDiscountValue(''); }}
+        onClose={() => setCustomDiscountVisible(false)}
+        onShow={() => setCustomDiscountValue('')}
+        title="Discount"
+        subtitle="Applied to the whole order"
+        footer={<>
+          <Button variant="outline" size="lg" label="Cancel" onPress={() => setCustomDiscountVisible(false)} style={styles.flex} />
+          <Button size="lg" label="Apply" onPress={applyCustomDiscount} style={styles.flex2} />
+        </>}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.customDiscountCard}>
-            <Text style={styles.modalTitle}>Custom Discount</Text>
+        <Segmented
+          options={[{ key: 'amount', label: `Amount (${currency})` }, { key: 'percent', label: 'Percentage (%)' }]}
+          value={customDiscountType}
+          onChange={k => setCustomDiscountType(k as 'amount' | 'percent')}
+          itemStyle={styles.flex}
+        />
+        <NumDisplay
+          value={`${customDiscountValue || '0'}${customDiscountType === 'percent' ? '%' : ''}`}
+          caption={customDiscountType === 'percent' ? <Txt variant="label" weight="regular" color={C.textMuted}>= {fmt(customDiscountAmount)} {currency}</Txt> : null}
+        />
+        <Numpad onDigit={appendCustomDigit} onBackspace={backspaceCustomDigit} />
+      </Dialog>
 
-            <View style={styles.typeToggleRow}>
-              <TouchableOpacity
-                style={[styles.typeToggleBtn, customDiscountType === 'amount' && styles.typeToggleBtnActive]}
-                onPress={() => setCustomDiscountType('amount')}
-              >
-                <Text style={[styles.typeToggleText, customDiscountType === 'amount' && styles.typeToggleTextActive]}>
-                  Amount ({user?.currency ?? 'SAR'})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.typeToggleBtn, customDiscountType === 'percent' && styles.typeToggleBtnActive]}
-                onPress={() => setCustomDiscountType('percent')}
-              >
-                <Text style={[styles.typeToggleText, customDiscountType === 'percent' && styles.typeToggleTextActive]}>
-                  Percentage (%)
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.discountDisplay}>
-              <Text style={styles.discountDisplayValue}>
-                {customDiscountValue || '0'}{customDiscountType === 'percent' ? '%' : ''}
-              </Text>
-              {customDiscountType === 'percent' && (
-                <Text style={styles.discountPreview}>
-                  = {fmt(customDiscountAmount)} {user?.currency ?? 'SAR'}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.numpadGrid}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back'].map(key => (
-                <TouchableOpacity
-                  key={key}
-                  style={styles.numpadKey}
-                  onPress={() => key === 'back' ? backspaceCustomDigit() : appendCustomDigit(key)}
-                >
-                  {key === 'back'
-                    ? <Icon name="backspace-outline" library="mci" size={18} color={Colors.text} />
-                    : <Text style={styles.numpadKeyText}>{key}</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setCustomDiscountVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.applyBtn} onPress={applyCustomDiscount}>
-                <Text style={styles.applyBtnText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
+      <Dialog
         visible={!!qtyEditItem}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setQtyEditItem(null)}
+        onClose={() => setQtyEditItem(null)}
+        title="Edit quantity"
+        subtitle={qtyEditItem?.name}
+        footer={<>
+          <Button variant="outline" size="lg" label="Cancel" onPress={() => setQtyEditItem(null)} style={styles.flex} />
+          <Button size="lg" label="Apply" onPress={applyQtyEdit} style={styles.flex2} />
+        </>}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.customDiscountCard}>
-            <Text style={styles.modalTitle}>Edit Quantity</Text>
-            <Text style={styles.modalSub} numberOfLines={1}>{qtyEditItem?.name}</Text>
+        <NumDisplay value={qtyEditValue || '0'} />
+        <Numpad onDigit={appendQtyDigit} onBackspace={backspaceQtyDigit} extraKey={null} />
+      </Dialog>
 
-            <View style={styles.discountDisplay}>
-              <Text style={styles.discountDisplayValue}>{qtyEditValue || '0'}</Text>
-            </View>
+      <Dialog
+        visible={noteModalVisible}
+        onClose={() => setNoteModalVisible(false)}
+        keyboard
+        title="Order note"
+        subtitle="Shown to the kitchen and printed on the bill"
+        footer={<>
+          <Button variant="outline" size="lg" label="Cancel" onPress={() => setNoteModalVisible(false)} style={styles.flex} />
+          <Button size="lg" label="Save note" onPress={() => { cart.setOrderNote(noteDraft.trim()); setNoteModalVisible(false); }} style={styles.flex2} />
+        </>}
+      >
+        <Field
+          value={noteDraft}
+          onChangeText={setNoteDraft}
+          placeholder="Type a note for this order"
+          multiline
+          autoFocus
+          height={120}
+          containerStyle={styles.noteField}
+          style={styles.noteInput}
+        />
+      </Dialog>
 
-            <View style={styles.numpadGrid}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'].map((key, i) => (
-                key === '' ? (
-                  <View key={`spacer-${i}`} style={styles.numpadKey} />
-                ) : (
-                  <TouchableOpacity
-                    key={key}
-                    style={styles.numpadKey}
-                    onPress={() => key === 'back' ? backspaceQtyDigit() : appendQtyDigit(key)}
-                  >
-                    {key === 'back'
-                      ? <Icon name="backspace-outline" library="mci" size={18} color={Colors.text} />
-                      : <Text style={styles.numpadKeyText}>{key}</Text>}
-                  </TouchableOpacity>
-                )
-              ))}
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setQtyEditItem(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.applyBtn} onPress={applyQtyEdit}>
-                <Text style={styles.applyBtnText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={noteModalVisible} transparent animationType="fade" onRequestClose={() => setNoteModalVisible(false)}>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={-120}
-        >
-          <View style={styles.customDiscountCard}>
-            <Text style={styles.modalTitle}>Order Note</Text>
-            <Text style={styles.fieldLabel}>Note for kitchen / staff</Text>
-            <TextInput
-              style={styles.noteInput}
-              value={noteDraft}
-              onChangeText={setNoteDraft}
-              placeholder="e.g. No onions, extra spicy..."
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setNoteModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={() => { cart.setOrderNote(noteDraft.trim()); setNoteModalVisible(false); }}
-              >
-                <Text style={styles.applyBtnText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      <Modal visible={itemNoteLine != null} transparent animationType="fade" onRequestClose={() => setItemNoteLine(null)}>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={-120}
-        >
-          <View style={styles.customDiscountCard}>
-            <Text style={styles.modalTitle}>Kitchen Note</Text>
-            <Text style={styles.fieldLabel}>
-              {cart.items.find(i => i.lineID === itemNoteLine)?.name ?? 'Item'}
-            </Text>
-            <TextInput
-              style={styles.noteInput}
-              value={itemNoteDraft}
-              onChangeText={setItemNoteDraft}
-              placeholder="e.g. No onion, well done..."
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setItemNoteLine(null)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={() => { if (itemNoteLine) cart.setItemNote(itemNoteLine, itemNoteDraft.trim()); setItemNoteLine(null); }}
-              >
-                <Text style={styles.applyBtnText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <Dialog
+        visible={itemNoteLine != null}
+        onClose={() => setItemNoteLine(null)}
+        keyboard
+        title="Item note"
+        subtitle={cart.items.find(i => i.lineID === itemNoteLine)?.name ?? 'Item'}
+        footer={<>
+          <Button variant="outline" size="lg" label="Cancel" onPress={() => setItemNoteLine(null)} style={styles.flex} />
+          <Button size="lg" label="Save note" onPress={() => { if (itemNoteLine) cart.setItemNote(itemNoteLine, itemNoteDraft.trim()); setItemNoteLine(null); }} style={styles.flex2} />
+        </>}
+      >
+        <Field
+          value={itemNoteDraft}
+          onChangeText={setItemNoteDraft}
+          placeholder="e.g. No onion, well done..."
+          multiline
+          autoFocus
+          height={120}
+          containerStyle={styles.noteField}
+          style={styles.noteInput}
+        />
+      </Dialog>
 
       <Modal visible={customerModalVisible} transparent animationType="slide" onRequestClose={closeCustomerModal}>
         <View style={styles.sidebarOverlay}>
@@ -1005,13 +893,12 @@ export default function SellScreen({ navigation }: Props) {
                   />
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
-                  <TouchableOpacity style={[styles.formBtn, styles.formBtnSecondary]} onPress={() => setAddingCustomer(false)} disabled={savingCustomer}>
+                  <TouchableOpacity style={[styles.formBtn, styles.formBtnSecondary]} onPress={(savingCustomer) ? undefined : () => setAddingCustomer(false)}>
                     <Text style={styles.formBtnSecondaryText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.formBtn, (!newCustomer.name.trim() || savingCustomer) && { opacity: 0.5 }]}
-                    onPress={saveNewCustomer}
-                    disabled={!newCustomer.name.trim() || savingCustomer}
+                    onPress={(!newCustomer.name.trim() || savingCustomer) ? undefined : saveNewCustomer}
                   >
                     {savingCustomer ? <ActivityIndicator color="#fff" /> : <Text style={styles.formBtnText}>Save & Select</Text>}
                   </TouchableOpacity>
@@ -1099,7 +986,7 @@ export default function SellScreen({ navigation }: Props) {
         product={optionsProduct}
         currency={user?.currency ?? 'SAR'}
         onClose={() => setOptionsProduct(null)}
-        onConfirm={({ computedPrice, selectionSummary, lineSelections }) => {
+        onConfirm={({ computedPrice, quantity, selectionSummary, lineSelections }) => {
           if (!optionsProduct) return;
           cart.addItem({
             productID: optionsProduct.productID,
@@ -1108,7 +995,7 @@ export default function SellScreen({ navigation }: Props) {
             sku: optionsProduct.sku,
             type: optionsProduct.type,
             price: computedPrice,
-            qty: 1,
+            qty: quantity,
             discount: 0,
             taxRate: optionsProduct.taxRate ?? 0,
             selectionSummary,
@@ -1120,7 +1007,7 @@ export default function SellScreen({ navigation }: Props) {
 
       <PaymentModal
         visible={paymentVisible}
-        onClose={() => setPaymentVisible(false)}
+        onClose={() => (paidOrder ? startNewOrder() : setPaymentVisible(false))}
         onComplete={async (rows) => {
           if (!activeShift) {
             appAlert('No Active Shift', 'Start a shift before taking payments.');
@@ -1145,7 +1032,7 @@ export default function SellScreen({ navigation }: Props) {
             return {
             orderNumber: String(result?.shiftOrderNo ?? result?.invoiceID ?? Date.now()),
             invoiceCode: result?.invoiceCode,
-            items: cart.items.map(i => ({ name: i.name, alternateName: i.nameAr, qty: i.qty, price: i.price, selections: i.selectionSummary })),
+            items: cart.items.map(i => ({ name: i.name, alternateName: i.nameAr, qty: i.qty, price: i.price, selections: i.selectionSummary, note: i.kitchenNote || undefined })),
             subtotal: cart.subtotal(),
             vat: cart.totalTax(),
             taxRate: taxPercent,
@@ -1175,15 +1062,23 @@ export default function SellScreen({ navigation }: Props) {
               toast(orderLabel, 'success');
               return;
             }
-            setPrintCaptureReceipt(data);
-            if (receiptSettings.printMode === 'image') {
-              // Let the hidden ReceiptPaper actually render this order's data
-              // before ViewShot captures it — state updates aren't visible to
-              // a screenshot until React has flushed at least one frame.
-              await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-            }
-            const result = await printReceiptNow(data, receiptSettings, printer, printViewShotRef);
+            const result = await printReceiptData(data);
             toast(orderLabel, 'success', result.success ? 'Receipt printed' : `Print failed: ${result.error}`);
+          };
+
+          // Auto-print on: close and print (fastest for a queue). Off: keep the
+          // checkout open on "Payment complete" so the cashier can print or
+          // start the next order.
+          const kickerAtPay = orderKicker;
+          const finishPaid = (data: ReceiptData) => {
+            resetOrder();
+            setDiscountPct(0);
+            if (receiptSettings.autoPrintOnComplete) {
+              setPaymentVisible(false);
+              printAndNotify(data);
+            } else {
+              setPaidOrder({ data, payments: rows.length, kicker: kickerAtPay });
+            }
           };
 
           const paidTableID = cart.tableID;
@@ -1224,10 +1119,7 @@ export default function SellScreen({ navigation }: Props) {
               total, paid: totalPaid, change: data.change, orderNo: data.orderNumber, zatcaQr: data.zatcaQrCode,
               cashPaid: rows.filter(r => isCashMethod(r.paymentMethod)).reduce((sum, r) => sum + r.paymentAmount, 0),
             });
-            resetOrder();
-            setDiscountPct(0);
-            setPaymentVisible(false);
-            printAndNotify(data);
+            finishPaid(data);
             // Full payment frees the table — same lifecycle point as web's finishPayment().
             if (paidTableID) tableService.releaseTable(paidTableID).then(() => useKitchenStore.getState().notifyTablesChanged(paidTableID)).catch(() => {});
           } catch (err: any) {
@@ -1248,10 +1140,7 @@ export default function SellScreen({ navigation }: Props) {
                 total, paid: totalPaid, change: data.change, orderNo: data.orderNumber,
                 cashPaid: rows.filter(r => isCashMethod(r.paymentMethod)).reduce((sum, r) => sum + r.paymentAmount, 0),
               });
-              resetOrder();
-              setDiscountPct(0);
-              setPaymentVisible(false);
-              printAndNotify(data);
+              finishPaid(data);
               return;
             }
             // Native alert, not a toast: toasts render behind the payment
@@ -1259,11 +1148,17 @@ export default function SellScreen({ navigation }: Props) {
             appAlert('Payment Failed', failureText(err, 'Please try again.'));
           }
         }}
-        total={cart.grandTotal()}
-        subtotal={cart.subtotal()}
-        discount={cart.totalDiscount()}
-        tax={cart.totalTax()}
+        total={paidOrder ? paidOrder.data.total : cart.grandTotal()}
+        subtotal={paidOrder ? paidOrder.data.subtotal : cart.subtotal()}
+        discount={paidOrder ? paidOrder.data.discount : cart.totalDiscount()}
+        tax={paidOrder ? paidOrder.data.vat : cart.totalTax()}
+        taxLabel={taxName ? `${taxName}${taxPercent ? ` (${taxPercent}%)` : ''}` : undefined}
         currency={user?.currency ?? 'SAR'}
+        kicker={paidOrder ? paidOrder.kicker : orderKicker}
+        completed={paidOrder ? { payments: paidOrder.payments } : null}
+        printing={printingPaid}
+        onPrintReceipt={printPaidReceipt}
+        onNewOrder={startNewOrder}
       />
 
       {/* Off-screen — exists only so "Image Canvas" print mode has a rendered
@@ -1272,6 +1167,12 @@ export default function SellScreen({ navigation }: Props) {
         <ReceiptPrintCapture
           ref={printViewShotRef}
           receipt={printCaptureReceipt} settings={receiptSettings} paperWidth={printer.paperWidth}
+        />
+      )}
+      {printCaptureReceipt && receiptSettings.printMode === 'image' && (receiptSettings.kitchenReceipt ?? 'off') !== 'off' && (
+        <KitchenTicketPrintCapture
+          ref={kitchenShotRef}
+          receipt={printCaptureReceipt} paperWidth={printer.paperWidth} showAlternateName={receiptSettings.showAlternateName}
         />
       )}
     </View>
@@ -1288,687 +1189,47 @@ function failureText(err: any, fallback: string): string {
   return status && status >= 400 ? `${msg} (HTTP ${status})` : msg;
 }
 
-function CategoryPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity style={[styles.categoryPill, active && styles.categoryPillActive]} onPress={onPress}>
-      <Text style={[styles.categoryPillText, active && styles.categoryPillTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-const SWIPE_ACTION_BTN_WIDTH = 72;
-const SWIPE_ACTION_WIDTH = SWIPE_ACTION_BTN_WIDTH * 2;
-
-// Swipe-left reveals both an Edit (qty numpad) and a Remove action, as a
-// bigger, easier-to-hit alternative to the trailing X button (kept, now with
-// a larger circular hit target, in case swipe isn't discovered). Tapping the
-// qty number also opens the numpad directly; the +/- buttons stay as-is.
-// The swipe gesture itself can be turned off in POS Settings — when off this
-// renders as a static row (still +/- and the trailing X, no gesture at all).
-function SwipeableCartRow({
-  item, currency, onDec, onInc, onEditQty, onRemove, onEditNote, swipeEnabled,
-}: { item: CartItem; currency: string; onDec: () => void; onInc: () => void; onEditQty: () => void; onRemove: () => void; onEditNote: () => void; swipeEnabled: boolean }) {
-  const translateX = useRef(new Animated.Value(0)).current;
-  const openRef = useRef(false);
-  // The PanResponder is created once per row, so it reads the POS Settings
-  // toggle through a ref — otherwise rows already on screen keep the value
-  // they were created with.
-  const swipeEnabledRef = useRef(swipeEnabled);
-  swipeEnabledRef.current = swipeEnabled;
-  useEffect(() => {
-    if (!swipeEnabled && openRef.current) {
-      openRef.current = false;
-      translateX.setValue(0);
-    }
-  }, [swipeEnabled, translateX]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, g) => swipeEnabledRef.current && Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-      onPanResponderMove: (_, g) => {
-        const base = openRef.current ? -SWIPE_ACTION_WIDTH : 0;
-        const next = Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, base + g.dx));
-        translateX.setValue(next);
-      },
-      onPanResponderRelease: (_, g) => {
-        const base = openRef.current ? -SWIPE_ACTION_WIDTH : 0;
-        const shouldOpen = base + g.dx < -SWIPE_ACTION_WIDTH / 2;
-        openRef.current = shouldOpen;
-        Animated.spring(translateX, { toValue: shouldOpen ? -SWIPE_ACTION_WIDTH : 0, useNativeDriver: true, bounciness: 0 }).start();
-      },
-    })
-  ).current;
-
-  const rowContent = (
-    <>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cartItemName} numberOfLines={1}>{item.name}</Text>
-        {item.selectionSummary ? (
-          <Text style={styles.cartItemSelections} numberOfLines={2}>{item.selectionSummary}</Text>
-        ) : null}
-        <Money amount={item.price} currency={currency} style={styles.cartItemPrice} />
-        <TouchableOpacity style={styles.itemNoteBtn} onPress={onEditNote} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <Icon name="sticky-note" size={10} color={item.kitchenNote ? '#B45309' : Colors.textMuted} />
-          <Text style={[styles.itemNoteText, item.kitchenNote ? styles.itemNoteTextSet : null]} numberOfLines={1}>
-            {item.kitchenNote || 'Kitchen note'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={styles.qtyBtn} onPress={onDec} hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}>
-        <Icon name="minus" size={11} color={Colors.text} />
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onEditQty} hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
-        <Text style={styles.qtyText}>{item.qty}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.qtyBtn} onPress={onInc} hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}>
-        <Icon name="plus" size={11} color={Colors.text} />
-      </TouchableOpacity>
-      <Money amount={item.total} currency={currency} style={styles.cartItemTotal} />
-      <TouchableOpacity style={styles.cartRowRemoveBtn} onPress={onRemove} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Icon name="times" size={14} color={Colors.textMuted} />
-      </TouchableOpacity>
-    </>
-  );
-
-  if (!swipeEnabled) {
-    return <View style={styles.cartRow}>{rowContent}</View>;
-  }
-
-  return (
-    <View style={styles.cartRowWrap}>
-      <View style={styles.cartRowActions}>
-        <TouchableOpacity style={styles.cartRowEditBtn} onPress={onEditQty}>
-          <Icon name="edit" size={16} color="#fff" />
-          <Text style={styles.cartRowActionText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.cartRowDeleteBtn} onPress={onRemove}>
-          <Icon name="trash-alt" size={16} color="#fff" />
-          <Text style={styles.cartRowActionText}>Remove</Text>
-        </TouchableOpacity>
-      </View>
-      <Animated.View style={[styles.cartRow, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
-        {rowContent}
-      </Animated.View>
-    </View>
-  );
-}
-
-const GridSeparator = () => <View style={{ height: 14 }} />;
-
-const ProductCard = React.memo(function ProductCard({ product, qtyInCart, onPress, width, currency }: { product: Product; qtyInCart: number; onPress: (p: Product) => void; width?: number; currency: string }) {
-  return (
-    <TouchableOpacity style={[styles.productCard, width != null && { flexBasis: width }, qtyInCart > 0 && styles.productCardActive]} onPress={() => onPress(product)} activeOpacity={0.85}>
-      <View style={styles.productImageWrap}>
-        {product.imageUrl ? (
-          <Image source={{ uri: product.imageUrl }} style={styles.productImage} />
-        ) : (
-          <View style={[styles.productImage, styles.productImagePlaceholder]}>
-            <Icon name="box" size={22} color={Colors.textMuted} />
-          </View>
-        )}
-        {qtyInCart > 0 && (
-          <View style={styles.qtyBadge}>
-            <Text style={styles.qtyBadgeText}>{qtyInCart}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-      <Money amount={product.price} currency={currency} style={styles.productPrice} />
-    </TouchableOpacity>
-  );
-});
-
-function TotalRow({ label, value, danger }: { label: string; value: React.ReactNode; danger?: boolean }) {
-  return (
-    <View style={styles.totalRow}>
-      <Text style={styles.totalLabel}>{label}</Text>
-      <Text style={[styles.totalValue, danger && { color: Colors.danger }]}>{value}</Text>
-    </View>
-  );
-}
-
-// Split-payment entry: at most one entry per method, editable/removable — the
-// cashier can type an exact amount for each method instead of a tap always
-// consuming the full remaining balance, matching the web POS's keypad flow.
-//
-// Card methods with a customer display connected: the amount goes to the
-// display as tap to pay (cardRequestId); the row waits there until the
-// customer's card is approved, and Complete stays off until then. Cash + card
-// splits work the same way (each method is one row).
-interface PaymentEntry { method: string; amount: number; cardRequestId?: string; }
-
-type CardRowState = 'pending' | 'approved' | 'failed';
-function cardRowState(c: CardPayment | undefined): CardRowState | null {
-  if (!c) return null;
-  if (c.status === 'approved') return 'approved';
-  return PAY_FINAL.includes(c.status as any) ? 'failed' : 'pending';
-}
-
-function PaymentModal({
-  visible, onClose, onComplete, total, subtotal, discount, tax, currency,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onComplete: (rows: { paymentMethod: string; paymentAmount: number }[]) => void;
-  total: number; subtotal: number; discount: number; tax: number; currency: string;
-}) {
-  const bootMethods = useSessionStore(s => s.bootstrap?.paymentMethods);
-  const methods = useMemo(() => {
-    const names = (bootMethods ?? []).map(m => (m.name ?? '').trim()).filter(Boolean);
-    return (names.length > 0 ? names : FALLBACK_PAYMENT_METHODS).map(name => ({ key: name, label: name, icon: paymentIcon(name) }));
-  }, [bootMethods]);
-  const [entries, setEntries] = useState<PaymentEntry[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [keypadMethod, setKeypadMethod] = useState<string | null>(null);
-  const [keypadValue, setKeypadValue] = useState('0');
-  const cds = useCustomerDisplayStore();
-  const cdsConnected = cds.status === 'connected';
-
-  useEffect(() => {
-    if (visible) { setEntries([]); setKeypadMethod(null); useCustomerDisplayStore.getState().clearCards(); }
-  }, [visible]);
-
-  const rowState = (e: PaymentEntry) => (e.cardRequestId ? cardRowState(cds.cards[e.cardRequestId]) : null);
-  // A declined / cancelled card pays nothing; a pending one counts so the
-  // cashier sees what is left for cash.
-  const counted = entries.filter(e => rowState(e) !== 'failed');
-  const totalPaid = counted.reduce((s, e) => s + e.amount, 0);
-  const remaining = Math.max(0, total - totalPaid);
-  const change = Math.max(0, totalPaid - total);
-  const anyPending = entries.some(e => rowState(e) === 'pending');
-  const anyFailed = entries.some(e => rowState(e) === 'failed');
-  const canComplete = counted.length > 0 && !anyPending && !anyFailed && totalPaid >= total - 0.001;
-  /** What is still due if `method`'s own row is left out (a card is charged at most this). */
-  const dueWithout = (method: string) =>
-    Math.max(0, Math.round((total - counted.filter(e => e.method !== method).reduce((s, e) => s + e.amount, 0)) * 100) / 100);
-
-  const approvedCards = entries.filter(e => rowState(e) === 'approved');
-  const closeModal = () => {
-    if (approvedCards.length > 0) {
-      appAlert(
-        'Card Payment Approved',
-        `${approvedCards.map(e => `${e.method} ${e.amount.toFixed(2)}`).join(', ')} was already charged. Complete the payment so the order is saved.`,
-        [
-          { text: 'Stay', style: 'cancel' },
-          { text: 'Close anyway', style: 'destructive', onPress: () => { cds.clearCards(); onClose(); } },
-        ],
-      );
-      return;
-    }
-    cds.clearCards(); // cancels any card still waiting on the display
-    onClose();
-  };
-
-  const startCard = (method: string, amount: number) => {
-    const id = cds.requestCard(method, amount);
-    if (!id) {
-      appAlert('Customer Display Offline', 'The card payment could not be sent to the customer display.');
-      return;
-    }
-    setEntries(prev => [...prev.filter(e => e.method !== method), { method, amount, cardRequestId: id }]);
-  };
-
-  const getEntryAmount = (method: string): number | null =>
-    entries.find(e => e.method === method)?.amount ?? null;
-
-  const openKeypad = (method: string) => {
-    const entry = entries.find(e => e.method === method);
-    const st = entry ? rowState(entry) : null;
-    if (st === 'approved') {
-      appAlert('Card Already Charged', `${method} ${entry!.amount.toFixed(2)} was approved and can't be changed.`);
-      return;
-    }
-    if (st === 'pending') {
-      appAlert('Waiting for Card', `The customer is paying ${method} ${entry!.amount.toFixed(2)} on the display. Cancel it first to change the amount.`);
-      return;
-    }
-    const existing = st === 'failed' ? null : getEntryAmount(method);
-    const defaultAmt = existing != null ? existing.toFixed(2) : (remaining > 0 ? remaining : total).toFixed(2);
-    setKeypadValue(defaultAmt);
-    setKeypadMethod(method);
-  };
-
-  const keypadPress = (key: string) => {
-    setKeypadValue(prev => {
-      if (key === 'backspace') return prev.length > 1 ? prev.slice(0, -1) : '0';
-      if (key === 'clear') return '0';
-      if (key === '.') return prev.includes('.') ? prev : prev + '.';
-      const next = prev === '0' ? key : prev + key;
-      const parts = next.split('.');
-      if (parts[1] && parts[1].length > 2) return prev;
-      return next;
-    });
-  };
-
-  const confirmKeypad = () => {
-    const amount = parseFloat(keypadValue) || 0;
-    if (!keypadMethod || amount <= 0) return;
-    if (isCardMethod(keypadMethod) && cdsConnected) {
-      if (entries.some(e => e.method !== keypadMethod && rowState(e) === 'pending')) {
-        appAlert('Card Payment in Progress', 'Wait for the current card payment to finish first.');
-        return;
-      }
-      // No change on a card: charge at most what is still due.
-      const charge = Math.min(amount, dueWithout(keypadMethod));
-      if (charge <= 0) {
-        appAlert('Nothing Due', 'The order is already fully paid.');
-        return;
-      }
-      setKeypadMethod(null);
-      startCard(keypadMethod, charge);
-      return;
-    }
-    setEntries(prev => [...prev.filter(e => e.method !== keypadMethod), { method: keypadMethod, amount }]);
-    setKeypadMethod(null);
-  };
-
-  const removeEntry = (method: string) => {
-    const entry = entries.find(e => e.method === method);
-    const st = entry ? rowState(entry) : null;
-    if (st === 'approved') {
-      appAlert('Card Already Charged', `${method} ${entry!.amount.toFixed(2)} was approved and can't be removed.`);
-      return;
-    }
-    if (st === 'pending' && entry?.cardRequestId) {
-      const id = entry.cardRequestId;
-      if (!cdsConnected) {
-        appAlert(
-          'Customer Display Offline',
-          "The display can't confirm the cancel. Only remove this payment if the customer was NOT charged.",
-          [
-            { text: 'Keep waiting', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => { cds.cancelCard(id, true); setEntries(prev => prev.filter(e => e.method !== method)); } },
-          ],
-        );
-        return;
-      }
-      cds.cancelCard(id); // the row turns "Cancelled" when the display confirms
-      return;
-    }
-    setEntries(prev => prev.filter(e => e.method !== method));
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={closeModal}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.paymentCard}>
-          <View style={styles.paymentHeader}>
-            <Text style={styles.modalTitle}>Checkout</Text>
-            <TouchableOpacity onPress={closeModal}>
-              <Icon name="times" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.paymentBody}>
-            <View style={styles.paymentLeft}>
-              <Text style={styles.orderTotalLabel}>ORDER TOTAL</Text>
-              <Money amount={total} currency={currency} style={styles.orderTotalValue} />
-
-              <Text style={[styles.fieldLabel, { marginTop: 20 }]}>PAYMENT METHOD</Text>
-              <View style={styles.methodGrid}>
-                {methods.map(m => {
-                  const entryAmt = getEntryAmount(m.key);
-                  return (
-                    <TouchableOpacity
-                      key={m.key}
-                      style={[styles.methodTile, entryAmt != null && styles.methodTileSelected]}
-                      onPress={() => openKeypad(m.key)}
-                    >
-                      <Icon name={m.icon} size={16} color={Colors.text} />
-                      <Text style={styles.methodTileText}>{m.label}</Text>
-                      {entryAmt != null && (
-                        <View style={styles.methodTileBadge}>
-                          <Icon name="check" size={9} color={Colors.text} />
-                          <Money amount={entryAmt} currency={currency} style={styles.methodTileBadgeText} />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {methods.some(m => isCardMethod(m.key)) && (
-                <View style={styles.cdsNote}>
-                  <Icon name={cdsConnected ? 'contactless-payment' : 'monitor-off'} library="mci" size={16} color={cdsConnected ? Colors.success : Colors.textMuted} />
-                  <Text style={styles.cdsNoteText}>
-                    {cdsConnected
-                      ? 'Card payments go to the customer display (tap to pay).'
-                      : 'Customer display not connected: card payments are recorded manually.'}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.paymentRight}>
-              <Text style={styles.fieldLabel}>ORDER SUMMARY</Text>
-              <View style={styles.summaryBoxSmall}>
-                <TotalRow label="Subtotal" value={<Money amount={subtotal} currency={currency} style={styles.totalValue} />} />
-                <TotalRow label="Discount" value={<Money amount={discount} currency={currency} style={[styles.totalValue, { color: Colors.danger }]} prefix="- " />} danger />
-                <TotalRow label="VAT" value={<Money amount={tax} currency={currency} style={styles.totalValue} />} />
-                <View style={styles.divider} />
-                <TotalRow label="Total" value={<Money amount={total} currency={currency} style={styles.totalValue} />} />
-              </View>
-
-              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>PAYMENTS ADDED</Text>
-              <View style={styles.paymentsAdded}>
-                {entries.length === 0 && <Text style={styles.emptyCartText}>Select a payment method.</Text>}
-                {entries.map(e => {
-                  const st = rowState(e);
-                  const card = e.cardRequestId ? cds.cards[e.cardRequestId] : undefined;
-                  const hit = { top: 8, bottom: 8, left: 8, right: 8 };
-                  let sub: string | null = null;
-                  if (st === 'pending') {
-                    sub = card?.cancelling ? 'Cancelling…' : card?.status === 'processing' ? 'Processing card…' : 'Waiting for customer to tap…';
-                  } else if (st === 'approved') {
-                    sub = 'Approved'
-                      + (card?.cardLast4 ? ` · ${(card.cardScheme ?? 'card').toUpperCase()} ••${card.cardLast4}` : '')
-                      + (card?.approvalCode ? ` · Auth ${card.approvalCode}` : '')
-                      + (card?.simulated ? ' · TEST' : '');
-                  } else if (st === 'failed') {
-                    sub = (card?.status === 'cancelled' ? 'Cancelled' : 'Declined') + (card?.message ? ` · ${card.message}` : '');
-                  }
-                  return (
-                    <View key={e.method} style={styles.paymentAddedRow}>
-                      {st === 'pending'
-                        ? <ActivityIndicator size="small" color="#D97706" />
-                        : st === 'failed'
-                          ? <Icon name="times-circle" size={13} color={Colors.danger} />
-                          : <Icon name="check-circle" size={13} color={Colors.success} />}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.paymentAddedLabel, { flex: 0 }, st === 'failed' && { textDecorationLine: 'line-through' }]}>{e.method}</Text>
-                        {sub && (
-                          <Text
-                            style={[styles.cardSub, st === 'failed' && { color: Colors.danger }, st === 'approved' && { color: Colors.success }]}
-                            numberOfLines={1}
-                          >
-                            {sub}
-                          </Text>
-                        )}
-                      </View>
-                      <Money amount={e.amount} currency={currency} style={styles.paymentAddedAmount} />
-                      {st === 'failed' && (
-                        <TouchableOpacity onPress={() => startCard(e.method, Math.min(e.amount, dueWithout(e.method)))} hitSlop={hit}>
-                          <Text style={styles.cardAction}>Retry</Text>
-                        </TouchableOpacity>
-                      )}
-                      {st === 'pending' && !card?.cancelling && card?.status !== 'processing' && (
-                        <TouchableOpacity onPress={() => removeEntry(e.method)} hitSlop={hit}>
-                          <Text style={[styles.cardAction, { color: Colors.danger }]}>Cancel</Text>
-                        </TouchableOpacity>
-                      )}
-                      {(st === null || st === 'failed') && (
-                        <TouchableOpacity onPress={() => openKeypad(e.method)} hitSlop={hit}>
-                          <Icon name="edit" size={12} color={Colors.textMuted} />
-                        </TouchableOpacity>
-                      )}
-                      {(st === null || st === 'failed') && (
-                        <TouchableOpacity onPress={() => removeEntry(e.method)} hitSlop={hit}>
-                          <Icon name="times" size={12} color={Colors.textMuted} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-
-              <View style={[styles.changeBox, remaining >= 0.01 && styles.changeBoxDue]}>
-                <TotalRow label="Total Paid" value={<Money amount={totalPaid} currency={currency} style={styles.totalValue} />} />
-                <TotalRow
-                  label={remaining < 0.01 ? 'Change' : 'Remaining'}
-                  value={<Money amount={remaining < 0.01 ? change : remaining} currency={currency} style={[styles.totalValue, remaining >= 0.01 && { color: Colors.danger }]} />}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[styles.completeBtn, (!canComplete || submitting) && styles.payBtnDisabled]}
-                disabled={!canComplete || submitting}
-                onPress={async () => {
-                  setSubmitting(true);
-                  await onComplete(entries.map(e => ({ paymentMethod: e.method, paymentAmount: e.amount })));
-                  setSubmitting(false);
-                }}
-              >
-                {submitting
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.completeBtnText}>✓ Complete Payment</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <Modal visible={!!keypadMethod} transparent animationType="fade" onRequestClose={() => setKeypadMethod(null)}>
-        <View style={styles.modalOverlay}>
-          {/* Same outer footprint AND same header style as the checkout card
-              (styles.paymentCard / paymentHeader) so switching between the two
-              never changes the modal's size, position, or header layout —
-              only the centered inner column (below) sizes itself to content. */}
-          <View style={styles.paymentCard}>
-            <View style={styles.paymentHeader}>
-              <Text style={styles.modalTitle}>{keypadMethod}</Text>
-              <TouchableOpacity onPress={() => setKeypadMethod(null)}>
-                <Icon name="times" size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.keypadBody}
-              activeOpacity={1}
-              onPress={() => setKeypadMethod(null)}
-            >
-            <TouchableOpacity activeOpacity={1} style={styles.keypadInner} onPress={() => {}}>
-              <Text style={styles.keypadHint}>Enter amount to charge</Text>
-
-              <View style={styles.keypadDisplay}>
-                {currency === 'SAR'
-                  ? <RiyalIcon size={24} color={Colors.text} style={{ marginRight: 8 }} />
-                  : <Text style={styles.keypadCurrency}>{currency}</Text>}
-                <Text style={styles.keypadAmount}>{keypadValue}</Text>
-              </View>
-
-              <View style={styles.keypadQuickRow}>
-                <TouchableOpacity style={styles.kqBtn} onPress={() => setKeypadValue((remaining > 0 ? remaining : total).toFixed(2))}>
-                  <Text style={styles.kqLabel}>Exact</Text>
-                  <Money amount={remaining > 0 ? remaining : total} currency={currency} style={styles.kqValue} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.kqBtn}
-                  onPress={() => setKeypadValue((Math.ceil((remaining > 0 ? remaining : total) / 10) * 10).toFixed(2))}
-                >
-                  <Text style={styles.kqLabel}>Round</Text>
-                  <Money amount={Math.ceil((remaining > 0 ? remaining : total) / 10) * 10} currency={currency} style={styles.kqValue} />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.keypadQuickRow}>
-                {[50, 100, 200, 500].map(v => (
-                  <TouchableOpacity key={v} style={styles.kqFixedBtn} onPress={() => setKeypadValue(v.toFixed(2))}>
-                    <Text style={styles.kqFixedText}>{v}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.numpadGrid}>
-                {['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'backspace'].map(k => (
-                  <TouchableOpacity key={k} style={styles.numpadKey} onPress={() => keypadPress(k)}>
-                    {k === 'backspace'
-                      ? <Icon name="backspace-outline" library="mci" size={20} color={Colors.text} />
-                      : <Text style={styles.numpadKeyText}>{k}</Text>}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <TouchableOpacity style={styles.keypadConfirmBtn} onPress={confirmKeypad}>
-                <Icon name="check" size={18} color="#fff" />
-                <Text style={styles.keypadConfirmText}>Add {keypadMethod} · {keypadValue}</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1, flexDirection: 'row' },
+  // ── Redesign layout (tokens from theme/tokens.ts) ──
+  root: { flex: 1, flexDirection: 'row', backgroundColor: C.bg },
+  main: { flex: 1, minWidth: 0, paddingHorizontal: 24, paddingTop: 22, gap: 18 },
+  searchRow: { flexDirection: 'row', gap: 12 },
+  searchField: { flex: 1 },
+  searchFieldOn: { borderColor: C.brand },
+  catalog: { flex: 1 },
+  aside: { width: 460, backgroundColor: C.surface, borderLeftWidth: 1, borderLeftColor: C.border },
+  asideTop: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 14, gap: 12 },
+  asideButtons: { flexDirection: 'row', gap: 8 },
+  customerChip: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingLeft: 8, borderRadius: 14, borderWidth: 1, borderColor: C.border },
+  customerText: { flex: 1, minWidth: 0 },
+  flex: { flex: 1 },
+  flex2: { flex: 2 },
+  orderHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: 24, borderTopWidth: 1, borderTopColor: C.border },
+  orderTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  orderNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginHorizontal: 24, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: C.bg },
+  lines: { flex: 1, paddingHorizontal: 24 },
+  linesEmpty: { flexGrow: 1 },
+  emptyOrder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, borderTopWidth: 1, borderTopColor: C.divider, paddingHorizontal: 12 },
+  asideFoot: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 20, gap: 14, borderTopWidth: 1, borderTopColor: C.border },
+  tiles: { flexDirection: 'row', gap: 8 },
+  totals: { gap: 6 },
+  sumRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  totalMuted: { fontSize: 15, fontFamily: F.regular, color: C.textMuted },
+  totalDiscount: { fontSize: 15, fontFamily: F.semibold, color: C.brand },
+  grandRow: { paddingTop: 6 },
+  grand: { fontSize: 32, fontFamily: F.bold, color: C.text },
+  noteField: { alignItems: 'flex-start', paddingVertical: 12 },
+  noteInput: { textAlignVertical: 'top' },
 
-  // Rendered but positioned far outside the viewport — see the print-capture
-  // block above. `left/top` (not opacity:0) so it's still fully laid out and
-  // capturable by react-native-view-shot.
-
-  left: { flex: 2.8, padding: 20 },
-  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
-  categoryPill: { backgroundColor: Colors.surface, borderRadius: 22, paddingHorizontal: 20, paddingVertical: 13, borderWidth: 1, borderColor: Colors.border },
-  categoryPillActive: { backgroundColor: Colors.primaryDark, borderColor: Colors.primaryDark },
-  categoryPillText: { fontSize: 15, fontWeight: '600', color: Colors.textLight },
-  categoryPillTextActive: { color: '#fff' },
 
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.surface,
     borderRadius: 12, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, height: 50, marginBottom: 14,
   },
-  searchWrapActive: { borderColor: Colors.primary, borderWidth: 1.5 },
   searchInput: { flex: 1, fontSize: 16, color: Colors.text },
-  searchCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-
-  grid: { paddingBottom: 40 },
-  emptyText: { textAlign: 'center', color: Colors.textMuted, marginTop: 40 },
-
-  productCard: {
-    flexGrow: 0, flexShrink: 0, flexBasis: '15%', backgroundColor: Colors.surface, borderRadius: 14,
-    padding: 12, borderWidth: 1.5, borderColor: 'transparent',
-  },
-  productCardActive: { borderColor: Colors.primary },
-  productImageWrap: { position: 'relative', marginBottom: 8 },
-  productImage: { width: '100%', aspectRatio: 1, borderRadius: 10 },
-  productImagePlaceholder: { backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  qtyBadge: {
-    position: 'absolute', top: 6, right: 6, backgroundColor: Colors.primary, borderRadius: 10,
-    minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-  },
-  qtyBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  productName: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 3 },
-  productPrice: { fontSize: 13.5, color: Colors.textMuted, fontWeight: '600' },
-
-  right: { flex: 1.2, backgroundColor: Colors.surface, borderLeftWidth: 1, borderLeftColor: Colors.border, padding: 18 },
-
-  orderTypeRow: {
-    flexDirection: 'row', gap: 6, backgroundColor: Colors.background, borderRadius: 10,
-    padding: 4, marginBottom: 12,
-  },
-  orderTypeTab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 8 },
-  orderTypeTabActive: { backgroundColor: Colors.primaryDark },
-  orderTypeText: { fontSize: 14, fontWeight: '600', color: Colors.textMuted },
-  orderTypeTextActive: { color: '#fff', fontWeight: '800' },
-
-  itemsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  itemsHeaderText: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6 },
-  itemsCountBadge: { backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 1 },
-  itemsCountText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
-  clearText: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' },
 
   emptyCartText: { color: Colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 20 },
-
-  cartRowWrap: { position: 'relative', overflow: 'hidden', borderBottomWidth: 1, borderBottomColor: Colors.divider },
-  cartRowActions: {
-    position: 'absolute', top: 0, bottom: 0, right: 0, width: SWIPE_ACTION_WIDTH,
-    flexDirection: 'row', alignItems: 'stretch',
-  },
-  cartRowEditBtn: { width: SWIPE_ACTION_BTN_WIDTH, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: Colors.primary },
-  cartRowDeleteBtn: { width: SWIPE_ACTION_BTN_WIDTH, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: Colors.danger },
-  cartRowActionText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-  cartRowRemoveBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  cartRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingRight: 10, backgroundColor: Colors.surface },
-  itemNoteBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, alignSelf: 'flex-start' },
-  itemNoteText: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600', maxWidth: 180 },
-  itemNoteTextSet: { color: '#B45309', fontWeight: '700' },
-  cartItemName: { fontSize: 14.5, fontWeight: '700', color: Colors.text },
-  cartItemPrice: { fontSize: 12, color: Colors.textMuted },
-  cartItemSelections: { fontSize: 11.5, color: Colors.textLight, marginTop: 1, marginBottom: 1 },
-  qtyBtn: { width: 26, height: 26, borderRadius: 7, backgroundColor: Colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  qtyText: { fontSize: 14.5, fontWeight: '700', color: Colors.text, minWidth: 18, textAlign: 'center' },
-  cartItemTotal: { fontSize: 14.5, fontWeight: '800', color: Colors.text, minWidth: 60, textAlign: 'right' },
-
-  actionsRow: { flexDirection: 'row', gap: 8, marginVertical: 12 },
-  actionBtn: {
-    flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center',
-    height: 44, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background,
-  },
-  actionBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.textLight },
-  actionBtnActive: { backgroundColor: Colors.primaryDark, borderColor: Colors.primaryDark },
-  actionBtnTextActive: { color: '#fff' },
-  holdBtn: {
-    flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center',
-    height: 44, borderRadius: 10, borderWidth: 1, borderColor: Colors.warning, backgroundColor: Colors.warningBg,
-  },
-  holdBtnText: { fontSize: 12.5, fontWeight: '700', color: Colors.warning },
-
-
-  totalsBox: { marginBottom: 12 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: Colors.textLight },
-  totalValue: { fontSize: 16, fontWeight: '800', color: Colors.text },
-
-  payRow: { paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
-  checkoutBtn: {
-    flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary,
-    borderRadius: 12, width: '100%', height: 56,
-  },
-  payBtnDisabled: { opacity: 0.5 },
-  payBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
-
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  modalSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 8 },
-
-  customDiscountCard: { width: 360, backgroundColor: Colors.surface, borderRadius: 20, padding: 24 },
-  customDiscountInput: {
-    backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border,
-    height: 52, paddingHorizontal: 14, fontSize: 20, fontWeight: '800', color: Colors.text, marginTop: 12,
-  },
-
-  typeToggleRow: { flexDirection: 'row', gap: 8, backgroundColor: Colors.background, borderRadius: 10, padding: 4, marginTop: 16 },
-  typeToggleBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 8 },
-  typeToggleBtnActive: { backgroundColor: Colors.primaryDark },
-  typeToggleText: { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
-  typeToggleTextActive: { color: '#fff' },
-
-  discountDisplay: { alignItems: 'flex-end', paddingVertical: 18, borderBottomWidth: 1.5, borderBottomColor: Colors.border, marginTop: 14, marginBottom: 14 },
-  discountDisplayValue: { fontSize: 34, fontWeight: '800', color: Colors.text },
-  discountPreview: { fontSize: 13, fontWeight: '600', color: Colors.primary, marginTop: 4 },
-
-  numpadGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  numpadKey: {
-    width: '31%', height: 50, borderRadius: 12, backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 8,
-  },
-  numpadKeyText: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  noteInput: {
-    backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border,
-    minHeight: 90, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: Colors.text,
-    marginTop: 12, textAlignVertical: 'top',
-  },
-
-  customerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.primaryLight,
-    borderRadius: 12, padding: 10, marginBottom: 14,
-  },
-  customerAvatar: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  customerAvatarText: { fontSize: 15, fontWeight: '800', color: '#fff' },
-  chipCloseBtn: { marginLeft: 4, marginRight: 4 },
-  customerName: { fontSize: 14.5, fontWeight: '700', color: Colors.primaryDark },
-  customerPhone: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
-  customerPickerBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: Colors.border,
-    borderStyle: 'dashed', borderRadius: 12, padding: 12, marginBottom: 14, justifyContent: 'center',
-  },
-  customerPickerText: { fontSize: 14.5, fontWeight: '600', color: Colors.textLight },
-
-  customerModalCard: { width: 460, maxWidth: '92%', maxHeight: '80%', backgroundColor: Colors.surface, borderRadius: 20, overflow: 'hidden' },
 
   sidebarOverlay: { flex: 1, flexDirection: 'row', backgroundColor: Colors.overlay },
   customerSidebarCard: { width: 420, maxWidth: '85%', height: '100%', backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderBottomLeftRadius: 20, overflow: 'hidden' },
@@ -1987,60 +1248,10 @@ const styles = StyleSheet.create({
   deviceRowActive: { backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 8 },
   deviceRowName: { fontSize: 14, fontWeight: '700', color: Colors.text },
   deviceRowSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  cancelBtn: { flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { fontSize: 13, fontWeight: '700', color: Colors.textLight },
-  applyBtn: { flex: 1, height: 46, borderRadius: 12, backgroundColor: Colors.primaryDark, alignItems: 'center', justifyContent: 'center' },
-  applyBtnText: { fontSize: 13, fontWeight: '800', color: '#fff' },
-
-  // Checkout card and the amount keypad share this exact footprint (width +
-  // minHeight) so switching between them never resizes/repositions the
-  // modal — only the content inside changes. Keep both in sync if either
-  // needs to change.
-  paymentCard: {
-    width: 820, maxWidth: '94%', minHeight: 620, backgroundColor: Colors.surface,
-    borderRadius: 24, overflow: 'hidden',
-  },
   paymentHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 28, paddingVertical: 22, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  paymentBody: { flex: 1, flexDirection: 'row', padding: 28, gap: 32 },
-  paymentLeft: { flex: 1 },
-  paymentRight: { flex: 1 },
-  orderTotalLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' },
-  orderTotalValue: { fontSize: 34, fontWeight: '800', color: Colors.text, marginTop: 6 },
-
-  methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  methodTile: {
-    width: '47%', height: 76, borderRadius: 14, borderWidth: 1.5, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.background,
-  },
-  methodTileSelected: { borderColor: Colors.success, backgroundColor: Colors.successBg },
-  methodTileText: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  methodTileBadge: {
-    position: 'absolute', bottom: -9, flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.success, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 3,
-  },
-  methodTileBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff' },
-
-  summaryBoxSmall: { backgroundColor: Colors.background, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border },
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: 8 },
-
-  paymentsAdded: { minHeight: 44 },
-  cardSub: { fontSize: 11.5, color: Colors.textLight, marginTop: 1 },
-  cardAction: { fontSize: 12.5, fontWeight: '800', color: Colors.primaryDark },
-  cdsNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
-  cdsNoteText: { flex: 1, fontSize: 12, color: Colors.textLight },
-  paymentAddedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  paymentAddedLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
-  paymentAddedAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
-
-  changeBox: { backgroundColor: Colors.successBg, borderRadius: 14, padding: 16, marginTop: 14 },
-  changeBoxDue: { backgroundColor: '#FEF2F2' },
-
-  completeBtn: { marginTop: 18, height: 56, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  completeBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 
   // Fills the rest of the shared paymentCard footprint below its header,
   // centering the fixed-width numpad column so it never stretches edge-to-edge.
@@ -2049,29 +1260,4 @@ const styles = StyleSheet.create({
   // whatever didn't fit, instead of letting the card grow to fit content like
   // the checkout screen does. Just size naturally and center horizontally.
   keypadBody: { alignItems: 'center', padding: 28 },
-  keypadInner: { width: 380, maxWidth: '100%' },
-  keypadHint: { fontSize: 13, color: Colors.textMuted, marginBottom: 16, textAlign: 'center' },
-  keypadDisplay: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.background, borderRadius: 14, paddingVertical: 20, marginBottom: 16,
-  },
-  keypadCurrency: { fontSize: 22, fontWeight: '700', color: Colors.textLight },
-  keypadAmount: { fontSize: 32, fontWeight: '800', color: Colors.text },
-  keypadQuickRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  kqBtn: {
-    flex: 1, backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
-    paddingVertical: 10, alignItems: 'center', gap: 3,
-  },
-  kqLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
-  kqValue: { fontSize: 14, fontWeight: '800', color: Colors.text },
-  kqFixedBtn: {
-    flex: 1, backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1, borderColor: Colors.border,
-    paddingVertical: 10, alignItems: 'center',
-  },
-  kqFixedText: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  keypadConfirmBtn: {
-    marginTop: 14, height: 56, borderRadius: 14, backgroundColor: Colors.primary,
-    flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center',
-  },
-  keypadConfirmText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });

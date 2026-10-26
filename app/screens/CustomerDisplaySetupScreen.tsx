@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Activi
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../utils/colors';
+import { SettingsPage } from '../components/ui';
 import Icon from '../components/Icon';
 import { useCustomerDisplayStore } from '../store/customerDisplayStore';
 import { discoverHubs, FoundHub } from '../kds-link/KdsClient';
@@ -18,7 +19,7 @@ const STATUS_TEXT: Record<string, { label: string; color: string }> = {
   rejected: { label: 'Rejected by display', color: '#DC2626' },
 };
 
-export default function CustomerDisplaySetupScreen() {
+export default function CustomerDisplaySetupScreen({ embedded }: { embedded?: boolean } = {}) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { status, host, hub, log, connectTo, disconnect } = useCustomerDisplayStore();
@@ -39,13 +40,7 @@ export default function CustomerDisplaySetupScreen() {
   const st = STATUS_TEXT[status] ?? STATUS_TEXT.idle;
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={14} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Customer Display</Text>
-      </View>
+    <SettingsPage title="Customer display" subtitle="Second screen that mirrors the order" embedded={embedded} scroll={false}>
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.card}>
@@ -66,7 +61,7 @@ export default function CustomerDisplaySetupScreen() {
 
         <Text style={styles.sectionLabel}>Find the display</Text>
         <View style={styles.card}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={scan} disabled={scanning}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={(scanning) ? undefined : scan}>
             {scanning ? <ActivityIndicator color="#fff" /> : <Icon name="search" size={14} color="#fff" />}
             <Text style={styles.primaryBtnText}>{scanning ? `Searching… ${progress}%` : 'Search network'}</Text>
           </TouchableOpacity>
@@ -103,7 +98,7 @@ export default function CustomerDisplaySetupScreen() {
           {log.map((l, i) => <Text key={i} style={styles.logLine}>{l}</Text>)}
         </View>
       </ScrollView>
-    </View>
+    </SettingsPage>
   );
 }
 
